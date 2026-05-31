@@ -38,7 +38,13 @@ Add the specific run, test, and lint commands here once the framework is chosen.
 
 ## Frontend Architecture
 
-- App Router with layouts: `app/layout.tsx` (root layout with Geist fonts + Tailwind) → `app/page.tsx`
-- Global styles via Tailwind CSS v4 in `app/globals.css` — uses `@import "tailwindcss"` (v4 syntax, not `@tailwind` directives)
-- Dark mode uses `prefers-color-scheme` media query with CSS custom properties (`--background`, `--foreground`)
+**Full spec:** `frontend/webapp/spec.md` — read this before editing any component. It covers the design system, all component APIs, state shape, data model, CSS conventions, and known pitfalls.
+
+Quick orientation:
+- `app/page.tsx` → `'use client'` + `dynamic(App, { ssr: false })` (SSR disabled — app reads `localStorage` and `window.innerWidth` at init)
+- `app/layout.tsx` → loads Space Grotesk, Manrope, Sora, Outfit via `next/font/google`
+- `app/globals.css` → `@import "tailwindcss"` (v4 syntax); declares `ge-eq`, `ge-scroll`, `ge-card` CSS hooks
+- `app/components/` → all SPA components; **all styling is inline `style` props**, not Tailwind classes
+- Single-page routing: `view` string in React state, no URL routing
+- Mobile breakpoint: `window.innerWidth < 760` via `useResponsive()` hook
 - Docker support via `frontend/Dockerfile`
