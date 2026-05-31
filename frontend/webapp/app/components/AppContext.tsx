@@ -51,8 +51,6 @@ export interface AppState {
   continueBooks: Book[];
   signIn: () => void;
   signOut: () => void;
-  tweaks: { accent: [string, string]; base: string; displayFont: string };
-  setTweak: <K extends 'accent' | 'base' | 'displayFont'>(k: K, v: AppState['tweaks'][K]) => void;
 }
 
 export const AppCtx = createContext<AppState | null>(null)
@@ -65,12 +63,6 @@ const SEED = {
   wishlist: ['neon', 'glass'] as string[],
   cart: ['cobalt'] as string[],
   premium: false,
-}
-
-const TWEAK_DEFAULTS = {
-  accent: ['#8B5CF6', '#A78BFA'] as [string, string],
-  base: 'Indigo',
-  displayFont: 'Space Grotesk',
 }
 
 const SPEEDS = [0.8, 1, 1.25, 1.5, 1.75, 2]
@@ -102,9 +94,6 @@ export function AppProvider({ children, startAuthed = false, startView = 'home' 
   const saved = useMemo(loadState, [])
   const init = saved || SEED
   const { mobile, w } = useResponsive()
-
-  const [tweaks, setTweaks] = useState(TWEAK_DEFAULTS)
-  const setTweak: AppState['setTweak'] = (k, v) => setTweaks(t => ({ ...t, [k]: v }))
 
   const [authed, setAuthed] = useState(startAuthed || init.authed)
   const [view, setView] = useState(startView)
@@ -230,7 +219,6 @@ export function AppProvider({ children, startAuthed = false, startView = 'home' 
     cart, addToCart, removeFromCart, inCart, library, isOwned, buyNow, placeOrder, lastOrder,
     wishlist, toggleWishlist, premium, setPremium, search, setSearch,
     progress, continueBooks, signIn, signOut,
-    tweaks, setTweak,
   }
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
