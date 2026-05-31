@@ -1,0 +1,154 @@
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import { T } from './theme'
+import { GEIcon } from './Icons'
+import { BookCover } from './BookCover'
+import { Btn, IconBtn, Stars, Screen } from './Atoms'
+import { Row } from './Chrome'
+import { GE_BOOKS, GE_BOOK_BY_ID, GE_CHAPTERS, fmt } from './bookdata'
+import { useApp } from './AppContext'
+
+export function Detail() {
+  const app = useApp()
+  const b = GE_BOOK_BY_ID[app.bookId]
+  const [tab, setTab] = useState('Overview')
+  useEffect(() => { setTab('Overview') }, [app.bookId])
+  if (!b) return null
+
+  const chapters = GE_CHAPTERS(b)
+  const owned = app.isOwned(b.id)
+  const inCart = app.inCart(b.id)
+  const similar = GE_BOOKS.filter(x => x.id !== b.id && (x.genre === b.genre || x.tags.some(t => b.tags.includes(t)))).slice(0, 6)
+  const mob = app.mobile
+
+  const Meta = () => (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontFamily: T.body, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.accent2 }}>{b.genre}</div>
+      <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: mob ? 30 : 44, letterSpacing: '-0.025em', lineHeight: 1.04, margin: '10px 0 8px', color: T.text }}>{b.title}</div>
+      <div style={{ fontSize: mob ? 15 : 17, color: T.mut }}>by <span style={{ color: T.text, fontWeight: 600 }}>{b.author}</span></div>
+      <div style={{ fontSize: 14, color: T.dim, marginTop: 4 }}>Narrated by {b.narrator}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 16, flexWrap: 'wrap' }}>
+        <Stars r={b.rating} s={15} showNum={b.reviews} />
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: T.mut }}><GEIcon.speed s={15} />{b.dur}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: T.mut }}><GEIcon.list s={15} />{chapters.length} chapters</span>
+      </div>
+      <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+        {owned ? (
+          <Btn kind="primary" size="lg" icon={<GEIcon.play s={17} />} onClick={() => app.openPlayer(b.id)}>
+            {app.progress[b.id] ? 'Continue' : 'Start listening'}
+          </Btn>
+        ) : (
+          <>
+            <Btn kind="light" size="lg" onClick={() => app.buyNow(b.id)}>Buy now · ${b.price}</Btn>
+            <Btn kind="soft" size="lg" icon={<GEIcon.cart s={17} />} onClick={() => inCart ? app.nav('cart') : app.addToCart(b.id)}>
+              {inCart ? 'In cart' : 'Add to cart'}
+            </Btn>
+          </>
+        )}
+        <IconBtn size={48} onClick={() => app.toggleWishlist(b.id)} style={{ border: '1px solid ' + T.line2 }}>
+          {app.wishlist.includes(b.id) ? <GEIcon.heartFill s={20} style={{ color: T.accent2 }} /> : <GEIcon.heart s={20} />}
+        </IconBtn>
+        <Btn kind="ghost" size="lg" icon={<GEIcon.play s={15} />} onClick={() => app.openPlayer(b.id)}>Sample</Btn>
+      </div>
+      {!owned && (
+        <div style={{ marginTop: 14, fontSize: 13, color: T.dim, display: 'flex', alignItems: 'center', gap: 7 }}>
+          <GEIcon.check s={15} style={{ color: T.good }} />Included with Premium membership
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <Screen style={{ padding: mob ? '4px 0 12px' : '0' }}>
+      <div style={{ padding: mob ? '0 20px' : '24px 40px 0' }}>
+        <div onClick={() => app.back()} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: T.mut, cursor: 'pointer', fontSize: 14, fontWeight: 600, marginBottom: 22 }}>
+          <GEIcon.chevR s={16} style={{ transform: 'rotate(180deg)' }} />Back
+        </div>
+        <div style={{ display: 'flex', flexDirection: mob ? 'column' : 'row', gap: mob ? 22 : 44, alignItems: mob ? 'center' : 'flex-start' }}>
+          <BookCover book={b} w={mob ? 220 : 300} radius={16} style={{ boxShadow: '0 30px 70px rgba(0,0,0,0.55)', flexShrink: 0 }} />
+          <Meta />
+        </div>
+
+        {/* tabs */}
+        <div style={{ display: 'flex', gap: 28, borderBottom: '1px solid ' + T.line, marginTop: 40 }}>
+          {['Overview', 'Chapters', 'Reviews'].map(t => (
+            <div key={t} onClick={() => setTab(t)} style={{ padding: '0 0 14px', cursor: 'pointer', fontFamily: T.disp, fontWeight: 700, fontSize: 15, color: tab === t ? T.text : T.mut, borderBottom: '2px solid ' + (tab === t ? T.accent : 'transparent'), marginBottom: -1 }}>{t}</div>
+          ))}
+        </div>
+
+        <div style={{ padding: '24px 0 8px', maxWidth: 760 }}>
+          {tab === 'Overview' && (
+            <div>
+              <p style={{ fontFamily: T.body, fontSize: mob ? 15 : 16.5, lineHeight: 1.7, color: '#C9C9D6', margin: 0 }}>{b.blurb}</p>
+              <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginTop: 22 }}>
+                {b.tags.map(tag => (
+                  <span key={tag} style={{ padding: '6px 14px', borderRadius: 99, border: '1px solid ' + T.line, color: T.mut, fontSize: 13, fontWeight: 600 }}>{tag}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {tab === 'Chapters' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {chapters.map(c => (
+                <div key={c.i} onClick={() => owned ? app.openPlayerAt(b.id, c.i) : app.openPlayer(b.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', borderRadius: 10, cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = T.surface}
+                  onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}>
+                  <span style={{ width: 22, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: T.dim, fontWeight: 700 }}>{c.i === 0 ? '–' : c.i}</span>
+                  <GEIcon.play s={14} style={{ color: T.mut, width: 16 }} />
+                  <span style={{ flex: 1, fontSize: 14.5, color: T.text, fontWeight: 500 }}>{c.title}</span>
+                  <span style={{ fontSize: 13, color: T.dim, fontVariantNumeric: 'tabular-nums' }}>{fmt(c.len)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {tab === 'Reviews' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 22, flexWrap: 'wrap' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 48, lineHeight: 1, color: T.text }}>{b.rating}</div>
+                  <div style={{ marginTop: 6 }}><Stars r="" s={14} /></div>
+                  <div style={{ fontSize: 12.5, color: T.dim, marginTop: 6 }}>{b.reviews.toLocaleString()} reviews</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  {[5, 4, 3, 2, 1].map(n => {
+                    const w = [72, 19, 6, 2, 1][5 - n]
+                    return (
+                      <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: T.dim, width: 10 }}>{n}</span>
+                        <div style={{ flex: 1, height: 6, background: T.elev, borderRadius: 3 }}>
+                          <div style={{ width: w + '%', height: '100%', background: T.star, borderRadius: 3 }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              {[
+                ['Imani R.', 5, 'The narration is hypnotic — I missed my subway stop twice. Worth every minute of the runtime.'],
+                ['Marcus T.', 4, 'A slow burn that pays off. Production quality is genuinely cinematic, especially the ambient sound design.'],
+                ['Priya S.', 5, 'Couldn\'t stop listening. The kind of story you immediately want to start again.'],
+              ].map(([name, r, txt], i) => (
+                <div key={i} style={{ padding: '16px 0', borderTop: '1px solid ' + T.line }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 16, background: T.elev2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.disp, fontWeight: 700, fontSize: 13, color: T.accent2 }}>{(name as string)[0]}</div>
+                    <span style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 14, color: T.text }}>{name as string}</span>
+                    <span style={{ display: 'flex', gap: 1, marginLeft: 'auto' }}>
+                      {Array.from({ length: 5 }).map((_, k) => <GEIcon.star key={k} s={13} style={{ color: k < (r as number) ? T.star : T.elev2 }} />)}
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6, color: '#B8B8C8' }}>{txt as string}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <Row title="Listeners also enjoyed" books={similar} onShowAll={() => app.nav('search')} />
+        </div>
+      </div>
+    </Screen>
+  )
+}
