@@ -104,7 +104,7 @@ export function PlayerDesktop() {
                   <span style={{ width: 22, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: active ? T.accent2 : T.dim, fontWeight: 700 }}>{c.i === 0 ? '–' : c.i}</span>
                   {active && np.playing
                     ? <div style={{ display: 'flex', gap: 2.5, alignItems: 'flex-end', height: 16, width: 18 }}>
-                        {[10, 16, 7, 13].map((h, k) => <span key={k} className="ge-eq" style={{ width: 3, background: T.accent2, borderRadius: 2, animationDelay: (k * 0.15) + 's', height: h }} />)}
+                        {[0, 1, 2, 3].map(k => <span key={k} className="ge-eq" style={{ width: 3, background: T.accent2, borderRadius: 2, animationDelay: (k * 0.15) + 's' }} />)}
                       </div>
                     : <GEIcon.play s={14} style={{ color: T.dim, width: 18 }} />
                   }
