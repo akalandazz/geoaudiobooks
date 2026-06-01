@@ -1,6 +1,6 @@
 # geaudiobooks — Frontend Spec
 
-Full reference for the Next.js 16 SPA. Read this before touching any component.
+Read before touching any component.
 
 ---
 
@@ -8,401 +8,167 @@ Full reference for the Next.js 16 SPA. Read this before touching any component.
 
 | File | Role |
 |---|---|
-| `app/layout.tsx` | Root HTML shell. Loads four Google Fonts via `next/font/google`. Sets CSS vars on `<html>`. No `<body>` class beyond the font variables — dark background comes from `globals.css`. |
-| `app/globals.css` | `@import "tailwindcss"` (v4 syntax). Declares `ge-eq` keyframe, `.ge-scroll` scrollbar hiding, `.ge-card:hover .ge-cardplay` hover reveal, `::selection` colour. Body `background: #0B0B12; overflow: hidden`. |
-| `app/page.tsx` | `'use client'` + `dynamic(() => import('./components/App'), { ssr: false })`. The `'use client'` is required — Next.js 16 forbids `ssr: false` in Server Components. `ssr: false` is required because `localStorage` and `window.innerWidth` are read at initialisation. |
+| `app/layout.tsx` | Root HTML shell. Loads 4 fonts via `next/font/google`. Sets CSS vars on `<html>`. |
+| `app/globals.css` | `@import "tailwindcss"` (v4). Declares `ge-eq` keyframe, `.ge-scroll`, `.ge-card/.ge-cardplay`. `body { background: #0B0B12; overflow: hidden }`. |
+| `app/page.tsx` | `'use client'` + `dynamic(() => import('./components/App'), { ssr: false })`. Both required — Next.js 16 forbids `ssr:false` in Server Components; `localStorage`/`window.innerWidth` read at init. |
 
 ---
 
-## 2. Fonts
+## 2. Design tokens (`app/components/theme.ts`)
 
-Loaded in `layout.tsx` via `next/font/google`. Available as CSS custom properties on `<html>`:
+`T` is a mutable singleton — `Shell` mutates it before children render. **Read `T` in render only — never at module scope or in `useMemo`.**
 
-| Variable | Font | Weights |
-|---|---|---|
-| `--font-display` | Space Grotesk | 400 500 600 700 |
-| `--font-body` | Manrope | 400 500 600 700 800 |
-| `--font-sora` | Sora | 400 500 600 700 800 |
-| `--font-outfit` | Outfit | 400 500 600 700 800 |
-
-`T.disp` and `T.body` reference these via `var(--font-display, 'Space Grotesk'), sans-serif`. Sora and Outfit are Tweaks-panel alternatives for the display font only.
-
----
-
-## 3. Design tokens (`app/components/theme.ts`)
-
-The `T` object is a plain mutable singleton. `Shell` mutates it on every render before children paint to apply Tweaks. **Never read `T` values at module scope or in useMemo — always read in render.**
+Fonts (CSS vars on `<html>`): `--font-display` Space Grotesk · `--font-body` Manrope · `--font-sora` Sora · `--font-outfit` Outfit (400–800 weights via `next/font/google`).
 
 ```ts
-T.bg        = '#0B0B12'   // page background
-T.bg2       = '#08080E'   // sidebar / mini-player background
-T.surface   = '#14141D'   // card backgrounds
-T.elev      = '#1B1B27'   // elevated UI (active nav item, pill bg)
-T.elev2     = '#22222F'   // double-elevated (speed menu, tweaks btn)
-T.line      = 'rgba(255,255,255,0.08)'   // dividers
-T.line2     = 'rgba(255,255,255,0.14)'   // stronger borders (inputs, player)
-T.accent    = '#8B5CF6'   // primary action colour (violet)
-T.accent2   = '#A78BFA'   // lighter accent (progress bars, active state)
-T.accentDim = 'rgba(139,92,246,0.16)'   // accent tint backgrounds
-T.text      = '#ECECF2'   // primary text
-T.mut       = '#9595AA'   // muted text / inactive nav
-T.dim       = '#6A6A80'   // secondary / meta text
-T.good      = '#34D399'   // success / check marks
-T.star      = '#F0B86E'   // star rating colour
-T.disp      = "var(--font-display, 'Space Grotesk'), sans-serif"
-T.body      = "var(--font-body, 'Manrope'), sans-serif"
-T.shadow    = '0 10px 40px rgba(0,0,0,0.45)'
+T.bg = '#0B0B12'  T.bg2 = '#08080E'  T.surface = '#14141D'
+T.elev = '#1B1B27'  T.elev2 = '#22222F'
+T.line = 'rgba(255,255,255,0.08)'  T.line2 = 'rgba(255,255,255,0.14)'
+T.accent = '#8B5CF6'  T.accent2 = '#A78BFA'  T.accentDim = 'rgba(139,92,246,0.16)'
+T.text = '#ECECF2'  T.mut = '#9595AA'  T.dim = '#6A6A80'
+T.good = '#34D399'  T.star = '#F0B86E'
+T.disp = "var(--font-display, 'Space Grotesk'), sans-serif"
+T.body = "var(--font-body, 'Manrope'), sans-serif"
+T.shadow = '0 10px 40px rgba(0,0,0,0.45)'
 ```
-
-Background alternatives (Tweaks):
-
-| Name | `T.bg` | `T.bg2` |
-|---|---|---|
-| Indigo (default) | `#0B0B12` | `#08080E` |
-| True black | `#000000` | `#060608` |
-| Slate | `#0E1117` | `#090C11` |
 
 ---
 
-## 4. Data model (`app/components/bookdata.ts`)
+## 3. Data model (`app/components/bookdata.ts`)
 
-### `Book`
 ```ts
 interface Book {
-  id: string
-  title: string
-  author: string
-  narrator: string
-  genre: string          // used for chapter title lookup
-  dur: string            // display string e.g. "11h 42m"
-  secs: number           // total seconds (source of truth for progress)
-  rating: number
-  reviews: number
-  price: number
-  palette: [string, string, string]  // [darkest, mid, accent] — used by BookCover
-  motif: 'lines' | 'wave' | 'grid' | 'soft'
-  year: number
-  tags: string[]         // genre pills on detail page, used for similarity matching
-  blurb: string
+  id: string; title: string; author: string; narrator: string; genre: string
+  dur: string; secs: number; rating: number; reviews: number; price: number
+  palette: [string, string, string]  // [darkest, mid, accent]
+  motif: 'lines' | 'wave' | 'grid' | 'soft'; year: number; tags: string[]; blurb: string
 }
-```
-
-The catalog has 12 books. `GE_BOOK_BY_ID` is a pre-built `Record<string, Book>` map.
-
-### `GE_CHAPTERS(book)`
-Returns `Chapter[]` — 10 chapters per book, derived from `book.secs`. Chapter titles are genre-specific. Chapter `start` values are cumulative seconds. Chapter `len` has a small per-chapter offset (`(i % 3) * 180s`) so lengths aren't all identical.
-
-```ts
 interface Chapter { i: number; title: string; len: number; start: number }
 ```
 
-### Helper formatters
-- `fmt(s)` → `"h:mm:ss"` or `"m:ss"` (omits hours if zero)
-- `fmtClock(s)` → `"7h 12m"` or `"45m"` (used in sidebar recents, mini-player)
+12 books. `GE_BOOK_BY_ID` — `Record<string, Book>`. `GE_CHAPTERS(book)` — 10 chapters from `book.secs`.  
+`fmt(s)` → `"h:mm:ss"` / `"m:ss"` · `fmtClock(s)` → `"7h 12m"` / `"45m"`
 
 ---
 
-## 5. App state (`app/components/AppContext.tsx`)
+## 4. App state (`app/components/AppContext.tsx`)
 
-Single React Context. Access with `useApp()` inside any component.
+Access with `useApp()`.
 
-### State fields
 ```ts
-authed: boolean
-view: string          // 'home' | 'search' | 'detail' | 'cart' | 'checkout' | 'confirm' | 'library' | 'profile' | 'settings'
-bookId: string        // id of book currently shown in Detail
-library: string[]     // owned book ids
-cart: string[]        // cart book ids
-wishlist: string[]    // wishlisted book ids
-progress: Record<string, number>   // bookId → position in seconds
-premium: boolean
-search: string        // live search query (synced between TopBar and Search screen)
-lastOrder: string[]   // ids from the most recent checkout (shown on Confirm screen)
-nowPlaying: NowPlaying | null
-playerOpen: boolean
-bookmarks: Bookmark[] // all saved bookmarks across all books
-sleep: Sleep | null   // active sleep timer; null when off
-mobile: boolean       // true when window.innerWidth < 760
-w: number             // raw window.innerWidth
+authed: boolean; view: string; bookId: string
+library: string[]; cart: string[]; wishlist: string[]
+progress: Record<string, number>   // bookId → seconds
+premium: boolean; search: string; lastOrder: string[]
+nowPlaying: NowPlaying | null; playerOpen: boolean
+bookmarks: Bookmark[]; sleep: Sleep | null
+mobile: boolean; w: number
 tweaks: { accent: [string, string]; base: string; displayFont: string }
+
+interface NowPlaying { bookId: string; chapter: number; pos: number; playing: boolean; speed: number }
+// speed cycles: [0.8, 1, 1.25, 1.5, 1.75, 2]
+interface Bookmark { id: string; bookId: string; chapter: number; pos: number; note: string; ts: number }
+interface Sleep { mode: 'time' | 'chapter'; minutes?: number; remaining: number; total: number }
 ```
 
-### `NowPlaying`
-```ts
-interface NowPlaying {
-  bookId: string
-  chapter: number   // index into GE_CHAPTERS(book)
-  pos: number       // current position in seconds
-  playing: boolean
-  speed: number     // one of [0.8, 1, 1.25, 1.5, 1.75, 2]
-}
-```
+**Navigation:** `nav(view)` pushes history · `back()` pops · `openDetail(id)` sets bookId + nav
 
-### `Bookmark`
-```ts
-interface Bookmark {
-  id: string        // 'bm' + Date.now()
-  bookId: string
-  chapter: number
-  pos: number       // position in seconds at time of save
-  note: string      // display label (chapter title if empty on save)
-  ts: number        // Date.now() timestamp
-}
-```
+**Player:** `openPlayer(id)` · `openPlayerAt(id, chapter)` · `closePlayer()` · `togglePlay()` · `seekRel(s)` · `seekPct(pct)` · `skipChapter(d)` · `goChapter(i)` · `cycleSpeed()` · `setSpeed(s)`
 
-### `Sleep`
-```ts
-interface Sleep {
-  mode: 'time' | 'chapter'
-  minutes?: number     // original minutes value (for active-state highlight in menu)
-  remaining: number    // seconds left until playback stops
-  total: number        // original total seconds (used for progress display)
-}
-```
+**Bookmarks:** `addBookmark(note?)` (no-op within 2s of existing) · `removeBookmark(id)` · `goBookmark(bm)`
 
-### Navigation actions
-| Action | Behaviour |
-|---|---|
-| `nav(view)` | Push current view onto history stack, set new view, close player |
-| `back()` | Pop history stack, restore previous view |
-| `openDetail(id)` | Set `bookId`, then `nav('detail')` |
+**Sleep:** `setSleepTimer('off'|null|'chapter'|minutes)` · `cancelSleep()`
 
-### Player actions
-| Action | Behaviour |
-|---|---|
-| `openPlayer(id)` | `startBook(id)` + `setPlayerOpen(true)` |
-| `openPlayerAt(id, chapter)` | Start at specific chapter |
-| `closePlayer()` | `setPlayerOpen(false)` (NowPlaying keeps running) |
-| `togglePlay()` | Flip `np.playing` |
-| `seekRel(s)` | ±seconds, clamped to `[0, book.secs]` |
-| `seekPct(pct)` | Seek to percentage of total duration |
-| `skipChapter(d)` | ±1 chapter |
-| `goChapter(i)` | Jump to chapter `i`, set `playing: true` |
-| `cycleSpeed()` | Rotate through `[0.8, 1, 1.25, 1.5, 1.75, 2]` |
-| `setSpeed(s)` | Set exact speed |
+**Commerce:** `addToCart(id)` · `removeFromCart(id)` · `inCart(id)` · `isOwned(id)` · `buyNow(id)` · `placeOrder()` · `toggleWishlist(id)`
 
-### Bookmark actions
-| Action | Behaviour |
-|---|---|
-| `addBookmark(note?)` | Saves current `np.pos` as a bookmark. Uses chapter title as `note` if none provided. No-ops if a bookmark already exists within 2 seconds of the current position. |
-| `removeBookmark(id)` | Removes bookmark by id |
-| `goBookmark(bm)` | Sets `np` to the bookmark's `bookId/chapter/pos`, starts playing |
+**`continueBooks`** — library books with `progress > 0`, sorted by % complete.
 
-### Sleep timer actions
-| Action | Behaviour |
-|---|---|
-| `setSleepTimer('off' \| null)` | Clears the sleep timer |
-| `setSleepTimer('chapter')` | Calculates seconds remaining in the current chapter (adjusted for `speed`), sets `sleep.mode = 'chapter'` |
-| `setSleepTimer(minutes: number)` | Sets `remaining = minutes * 60`, `mode = 'time'`, starts playback |
-| `cancelSleep()` | Alias for `setSleepTimer(null)` |
+**Persistence:** `localStorage 'geaudio.state.v1'`. `nowPlaying` saved with `playing: false`. `sleep` not persisted.
 
-The playback engine decrements `sleep.remaining` by 1 each tick. When it reaches 0, `playing` is set to `false` and `sleep` is cleared.
-
-### Commerce actions
-| Action | Behaviour |
-|---|---|
-| `addToCart(id)` / `removeFromCart(id)` | Mutate `cart` |
-| `inCart(id)` | Boolean check |
-| `isOwned(id)` | Boolean check against `library` |
-| `buyNow(id)` | Add to library, set `lastOrder`, clear from cart, `nav('confirm')` |
-| `placeOrder()` | Add all cart items to library, set `lastOrder`, clear cart, `nav('confirm')` |
-| `toggleWishlist(id)` | Add or remove from `wishlist` |
-
-### `continueBooks`
-Derived field — books from `library` that have `progress[id] > 0`, sorted by highest percentage complete. Shown in Home "Continue listening" row and Library "Listening" tab.
-
-### Persistence
-`useEffect` in `AppProvider` writes to `localStorage` key `'geaudio.state.v1'` on every change to `authed, library, progress, wishlist, cart, premium, bookmarks, nowPlaying`. `nowPlaying` is saved with `playing: false` (never resumes playing across sessions). `sleep` is not persisted (resets on reload). Loaded once on mount via `useMemo(loadState, [])`.
-
-### Playback engine
-`useEffect` with `setInterval(1000ms)` in `AppProvider`. Runs only when `np.playing === true`. Each tick:
-1. Advances `pos` by `speed` seconds, auto-stops at `book.secs`, updates chapter index, writes progress for owned books.
-2. Decrements `sleep.remaining` by 1; when it hits 0, clears `sleep` and sets `playing: false`.
+**Playback engine:** 1s interval when `np.playing`. Advances `pos` by `speed`, updates chapter index, decrements `sleep.remaining` (stops + clears at 0).
 
 ---
 
-## 6. Responsive layout
+## 5. Layout
 
-Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()` hook (resize listener).
+Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 
-**Desktop layout** (inside `Shell`):
-```
-<div style={{ display: 'flex', height: '100vh' }}>
-  <Sidebar />                    // 252px fixed width
-  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-    <TopBar />                   // 66px fixed height
-    <ScreenComponent />          // flex: 1, scrollable
-    <MiniPlayer />               // 84px fixed height (only when nowPlaying)
-  </div>
-  {playerOpen && <PlayerDesktop />}   // absolute inset: 0, z-index: 50
-</div>
-```
+**Desktop:** `Sidebar` (252px) + column of `TopBar` (66px) / screen / `MiniPlayer` (84px). `PlayerDesktop` — `position:absolute, inset:0, z-index:50`.
 
-**Mobile layout**:
-```
-<div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-  {view === 'home' && <MobileTop />}
-  <ScreenComponent />
-  <MiniPlayer mobile />          // compact card, above BottomNav
-  <BottomNav />                  // 4-tab bar
-</div>
-{playerOpen && <PlayerMobile />}  // absolute inset: 0, z-index: 50
-```
+**Mobile:** `MobileTop` (home only) / screen / `MiniPlayer` compact / `BottomNav`. `PlayerMobile` same overlay.
 
 ---
 
-## 7. Components
+## 6. Components
 
-### `BookCover` (`app/components/BookCover.tsx`)
-Generates a square typographic cover from `book.palette` and `book.motif`. No external images.
-
+**`BookCover`** — typographic cover from `palette` + `motif`. Omit `w` for CSS sizing (ResizeObserver scales fonts).
 ```tsx
-<BookCover book={b} w={180} radius={10} style={...} onClick={...} />
+<BookCover book={b} w={180} radius={10} />
 ```
 
-- `w` is the fixed pixel width (and height — covers are always square).
-- Font sizes are computed as proportions of `w` via `fs(multiplier)`.
-- Uses `ResizeObserver` to track actual rendered width so font scales correctly when `w` is omitted and the cover is sized by CSS (e.g. `style={{ width: '100%', aspectRatio: '1' }}`).
-- Motifs: `lines` (diagonal SVG strokes), `wave` (SVG wave fills), `grid` (SVG dot pattern), `soft` (radial gradient blobs).
+**`BookCard`** (`Chrome.tsx`) — `w`: number or `"100%"`. Non-null `progress` (0–100) replaces star/price line.
 
-### `BookCard` (`Chrome.tsx`)
-```tsx
-<BookCard b={book} w={158} progress={null} onClick={fn} />
-```
-- `w` can be a `number` (fixed px) or `"100%"` (grid usage). When `"100%"`, the outer div fills the grid cell and `BookCover` receives no `w` (self-sizes via CSS + ResizeObserver).
-- `progress` (0–100) shows a progress bar instead of star/price line when non-null.
-- Hover reveals a play button (`.ge-cardplay`) via CSS `.ge-card:hover .ge-cardplay`.
+**`Row`** (`Chrome.tsx`) — horizontal carousel. `progressMap` values are raw seconds.
 
-### `Row` (`Chrome.tsx`)
-Horizontal scrolling carousel section. Hidden scrollbars via `.ge-scroll`.
-```tsx
-<Row title="New & trending" books={books} progressMap={map} onShowAll={fn} />
-```
-`progressMap` is `Record<string, number>` where values are raw seconds (converted to percentage internally).
-
-### Atom components (`Atoms.tsx`)
+**Atoms** (`Atoms.tsx`):
 
 | Component | Key props |
 |---|---|
 | `Btn` | `kind: 'primary'｜'light'｜'ghost'｜'soft'`, `size: 'sm'｜'md'｜'lg'`, `icon`, `full` |
-| `IconBtn` | `size` (px, default 40), `active` (tints background with `accentDim`) |
-| `Pill` | `active` — inverts colours (white bg, dark text) when active |
-| `Stars` | `r` (rating value), `s` (icon size), `showNum` (review count) |
-| `Screen` | Scrollable flex-1 container with `.ge-scroll` |
-| `Scrubber` | Draggable scrub bar. `pct` 0–100, `onSeek(pct)` callback |
-| `PageHead` | Title + optional subtitle; sizes differ between mobile/desktop |
+| `IconBtn` | `size` px, `active` (accentDim tint) |
+| `Pill` | `active` inverts colours |
+| `Stars` | `r`, `s` (icon size), `showNum` |
+| `Scrubber` | `pct` 0–100, `onSeek(pct)` |
+| `Screen` | Scrollable flex-1 + `.ge-scroll` |
+| `PageHead` | Title + optional subtitle |
 
-### `Sidebar` (`Chrome.tsx`)
-Width 252px. Shows Logo, nav items (Home/Search/Your Library), "Jump back in" recents (last 3 library items), and a "Go Premium" upsell card when `!app.premium`.
+**`SleepControl`** — popover: Off/15/30/45/60min/End of chapter. Expands with countdown when active. `dir="up"|"down"`.
 
-### `MiniPlayer` (`Chrome.tsx`)
-Desktop: 84px bar at bottom of content column. Shows cover, title, narrator, scrubber, transport controls (skip ±15/30s, prev/next chapter, play/pause), speed badge, **`SleepControl`** (live countdown when active), and chapter-list icon button.
+**`Waveform`** — 130 bars (desktop) / 50 (mobile). Bars left of `pct` = `T.accent2`. Pointer drag supported.
 
-Mobile: compact card above `BottomNav`. Shows cover, title, time remaining, play/pause. Progress bar as 2.5px bottom strip.
+**Equalizer (`.ge-eq` spans):** Never set inline `height` — overrides animation. Only `width`, `background`, `borderRadius`, `animationDelay`.
 
-### `PlayerDesktop` / `PlayerMobile` (`Player.tsx`)
-Full-screen overlays (`position: absolute, inset: 0, z-index: 50`). Background is a radial gradient using `book.palette[1]`.
-
-Desktop: 440px cover column on the left. Right panel has a **Chapters / Bookmarks tab toggle** (counts shown inline) and a "+ Bookmark" button. Transport bar is pinned to bottom (`position: absolute, bottom: 40px`), includes `SpeedMenu` and `SleepControl`.
-
-Mobile: cover centered, waveform + transport below. Bottom row has speed button, `SleepControl`, bookmark button (saves + shows `useFlash` toast), and list button that opens `MobileSheet`.
-
-### `SleepControl` (`Player.tsx`)
-```tsx
-<SleepControl size={44} dir="up" iconSize={24} />
-```
-Icon button with a popover menu (Off / 15 / 30 / 45 / 60 min / End of chapter). When a timer is active, the button expands to show a live countdown label and tints with `accentDim`. `dir` controls whether the popover opens upward or downward. Used in `PlayerDesktop`, `PlayerMobile`, and the desktop `MiniPlayer`.
-
-### `BookmarksList` (`Player.tsx`)
-```tsx
-<BookmarksList bookId={np.bookId} />
-```
-Renders bookmarks for one book, sorted by position. Clicking a bookmark calls `goBookmark`. Delete button calls `removeBookmark`. Shows an empty state when no bookmarks exist.
-
-### `useFlash` (`Player.tsx`)
-```ts
-const [node, showFlash] = useFlash()
-```
-Returns a toast node (rendered in the player overlay) and a `showFlash(msg)` trigger. Toast auto-dismisses after 1600ms. Used to confirm "Bookmarked ✓" saves.
-
-### `Waveform` (`Player.tsx`)
-Renders 130 bars (desktop) or 50 bars (mobile). Bar height is deterministic from `Math.sin(i * 0.5)`. Bars left of `pct` are coloured `T.accent2`, right are `rgba(255,255,255,0.13)`. Pointer drag supported.
-
-### Equalizer animation
-Active chapter shows 4 animated bars (`.ge-eq`) when `playing === true`. Class is defined in `globals.css`:
-```css
-@keyframes ge-eq { 0%, 100% { height: 5px; } 50% { height: 16px; } }
-.ge-eq { animation: ge-eq 0.7s ease-in-out infinite; }
-```
-**Do not set inline `height` on `.ge-eq` spans** — it overrides the animation. Each bar gets only `width`, `background`, `borderRadius`, and `animationDelay`.
+**`useFlash`:** `const [node, showFlash] = useFlash()` — toast, auto-dismisses after 1600ms.
 
 ---
 
-## 8. Screens
+## 7. Screens
 
-| View key | Component | File |
+| View | Component | File |
 |---|---|---|
-| `'home'` | `Home` | `Home.tsx` |
-| `'search'` | `Search` | `Search.tsx` |
-| `'detail'` | `Detail` | `Detail.tsx` |
-| `'cart'` | `Cart` | `Commerce.tsx` |
-| `'checkout'` | `Checkout` | `Commerce.tsx` |
-| `'confirm'` | `Confirm` | `Commerce.tsx` |
-| `'library'` | `Library` | `Account.tsx` |
-| `'profile'` | `Profile` | `Account.tsx` |
-| `'settings'` | `Settings` | `Account.tsx` |
+| `home` | `Home` | `Home.tsx` |
+| `search` | `Search` | `Search.tsx` |
+| `detail` | `Detail` | `Detail.tsx` |
+| `cart`/`checkout`/`confirm` | `Cart`, `Checkout`, `Confirm` | `Commerce.tsx` |
+| `library`/`profile`/`settings` | `Library`, `Profile`, `Settings` | `Account.tsx` |
 
-Auth (`Auth.tsx`) is rendered outside the screen router — `Shell` returns `<Auth />` when `!app.authed`.
+Auth (`Auth.tsx`) outside router — `Shell` returns `<Auth />` when `!app.authed`.
 
-### Home
-- Featured hero: hardcoded to `GE_BOOK_BY_ID['machine']` (The Quiet Machine)
-- "Continue listening" row: only shown if `continueBooks.length > 0`
-- "New & trending": `['neon', 'ashfall', 'cobalt', 'vermillion', 'hollow', 'glass']`
-- "Fresh this year": `GE_BOOKS.filter(b => b.year >= 2025).slice(0, 6)`
-
-### Search
-Local state: `q` (query), `genre` (pill filter), `sort` ('Popular'|'Top rated'|'Newest'|'Price'). Filters `GE_BOOKS` array on every render. Input autofocused on desktop. Sort pills not shown on mobile.
-
-### Detail
-Tabs: Overview / Chapters / Reviews. Tab state resets to 'Overview' when `bookId` changes.
-- Overview: `book.blurb` + tags
-- Chapters: clickable list; owned users → `openPlayerAt`; non-owned → `openPlayer`
-- Reviews: hardcoded 3 sample reviews + rating breakdown
-- "Listeners also enjoyed": books sharing genre or tags, limit 6
-
-### Cart / Checkout / Confirm
-Cart shows empty state when `app.cart.length === 0`. Order summary computes: subtotal → −30% Premium discount → +8% tax → total. Checkout has card/PayPal/Apple Pay selector; card fields shown conditionally. Confirm shows `lastOrder` books with play buttons.
-
-### Library
-Three tabs: Listening / Owned / Wishlist. Listening tab shows a resume-card list (not a grid). Owned and Wishlist show `BookCard` grids.
-
-### Settings
-Premium toggle calls `app.setPremium(!app.premium)`. Sign out calls `app.signOut()` which sets `authed: false`. Other controls are local state only (Toggle, Seg).
+- **Home:** Hero = `GE_BOOK_BY_ID['machine']`. "Continue" row hidden until `continueBooks.length > 0`.
+- **Search:** Filters on `q`, `genre` pill, `sort`. Sort pills hidden mobile.
+- **Detail:** Overview / Chapters / Reviews tabs. Resets to Overview on `bookId` change.
+- **Cart:** Subtotal → −30% Premium → +8% tax.
+- **Library:** Listening (resume cards) / Owned (grid) / Wishlist (grid).
+- **Settings:** `setPremium` toggle · `signOut()` → `authed: false`.
+- Adding a screen: add to `SCREENS` in `App.tsx`. No router config needed.
 
 ---
 
-## 9. CSS conventions
+## 8. CSS
 
-All layout and visual styling uses **inline `style` props**. Tailwind classes are only used in `layout.tsx` for the outer HTML/body wrapper. This is intentional — the design requires pixel-level fidelity to the prototype.
+All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
 
-The only CSS classes used in components:
-- `.ge-scroll` — apply to any scrollable container to hide scrollbars
-- `.ge-card` — apply to `BookCard` outer div to enable `.ge-cardplay` hover reveal
-- `.ge-cardplay` — apply to the hover play button inside a `.ge-card`
-- `.ge-eq` — apply to equalizer bar `<span>` elements; never set inline `height`
+| Class | Use |
+|---|---|
+| `.ge-scroll` | Hide scrollbars on scrollable containers |
+| `.ge-card` / `.ge-cardplay` | Hover-reveal play button on BookCard |
+| `.ge-eq` | Equalizer bars — never set inline `height` |
 
 ---
 
-## 10. Known patterns and pitfalls
+## 9. Pitfalls
 
-**Theme mutation:** `T` is mutated in `Shell`'s render body before children render. This means all components that read `T` get the tweaked values. Don't cache `T.accent` etc. outside render.
-
-**Player stays mounted when closed:** `closePlayer()` sets `playerOpen: false` but does not stop playback. Music continues playing while navigating. The `MiniPlayer` shows progress and play/pause even when the full player is closed.
-
-**`openPlayer` vs `openPlayerAt`:** Both open the full player. `openPlayer` resumes from saved progress or start. `openPlayerAt` jumps to a specific chapter index.
-
-**BookCover in grid:** Pass `w` as `undefined` (not a string number). Set the size via `style={{ width: '100%', aspectRatio: '1', height: 'auto' }}`. The `ResizeObserver` inside `BookCover` will measure and scale typography correctly.
-
-**Adding a new screen:** Add the component to the `SCREENS` record in `App.tsx`. Add a nav call in whatever component navigates to it. No routing config needed.
-
-**Adding a nav item:** Add an `<Item>` to `Sidebar` (desktop) and `BottomNav` (mobile).
+- **Theme mutation:** `T` mutated in `Shell` render — never cache `T.*` outside render.
+- **Player stays mounted when closed:** `closePlayer()` hides UI only; playback continues.
+- **`openPlayer` vs `openPlayerAt`:** Both open the player; `openPlayerAt` jumps to a chapter.
+- **BookCover in grid:** Omit `w`, use `style={{ width: '100%', aspectRatio: '1' }}`.
