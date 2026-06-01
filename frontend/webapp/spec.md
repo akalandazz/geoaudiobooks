@@ -120,6 +120,8 @@ search: string        // live search query (synced between TopBar and Search scr
 lastOrder: string[]   // ids from the most recent checkout (shown on Confirm screen)
 nowPlaying: NowPlaying | null
 playerOpen: boolean
+bookmarks: Bookmark[] // all saved bookmarks across all books
+sleep: Sleep | null   // active sleep timer; null when off
 mobile: boolean       // true when window.innerWidth < 760
 w: number             // raw window.innerWidth
 tweaks: { accent: [string, string]; base: string; displayFont: string }
@@ -133,6 +135,28 @@ interface NowPlaying {
   pos: number       // current position in seconds
   playing: boolean
   speed: number     // one of [0.8, 1, 1.25, 1.5, 1.75, 2]
+}
+```
+
+### `Bookmark`
+```ts
+interface Bookmark {
+  id: string        // 'bm' + Date.now()
+  bookId: string
+  chapter: number
+  pos: number       // position in seconds at time of save
+  note: string      // display label (chapter title if empty on save)
+  ts: number        // Date.now() timestamp
+}
+```
+
+### `Sleep`
+```ts
+interface Sleep {
+  mode: 'time' | 'chapter'
+  minutes?: number     // original minutes value (for active-state highlight in menu)
+  remaining: number    // seconds left until playback stops
+  total: number        // original total seconds (used for progress display)
 }
 ```
 
@@ -157,6 +181,23 @@ interface NowPlaying {
 | `cycleSpeed()` | Rotate through `[0.8, 1, 1.25, 1.5, 1.75, 2]` |
 | `setSpeed(s)` | Set exact speed |
 
+### Bookmark actions
+| Action | Behaviour |
+|---|---|
+| `addBookmark(note?)` | Saves current `np.pos` as a bookmark. Uses chapter title as `note` if none provided. No-ops if a bookmark already exists within 2 seconds of the current position. |
+| `removeBookmark(id)` | Removes bookmark by id |
+| `goBookmark(bm)` | Sets `np` to the bookmark's `bookId/chapter/pos`, starts playing |
+
+### Sleep timer actions
+| Action | Behaviour |
+|---|---|
+| `setSleepTimer('off' \| null)` | Clears the sleep timer |
+| `setSleepTimer('chapter')` | Calculates seconds remaining in the current chapter (adjusted for `speed`), sets `sleep.mode = 'chapter'` |
+| `setSleepTimer(minutes: number)` | Sets `remaining = minutes * 60`, `mode = 'time'`, starts playback |
+| `cancelSleep()` | Alias for `setSleepTimer(null)` |
+
+The playback engine decrements `sleep.remaining` by 1 each tick. When it reaches 0, `playing` is set to `false` and `sleep` is cleared.
+
 ### Commerce actions
 | Action | Behaviour |
 |---|---|
@@ -171,10 +212,12 @@ interface NowPlaying {
 Derived field — books from `library` that have `progress[id] > 0`, sorted by highest percentage complete. Shown in Home "Continue listening" row and Library "Listening" tab.
 
 ### Persistence
-`useEffect` in `AppProvider` writes to `localStorage` key `'geaudio.state.v1'` on every change to `authed, library, progress, wishlist, cart, premium, nowPlaying`. `nowPlaying` is saved with `playing: false` (never resumes playing across sessions). Loaded once on mount via `useMemo(loadState, [])`.
+`useEffect` in `AppProvider` writes to `localStorage` key `'geaudio.state.v1'` on every change to `authed, library, progress, wishlist, cart, premium, bookmarks, nowPlaying`. `nowPlaying` is saved with `playing: false` (never resumes playing across sessions). `sleep` is not persisted (resets on reload). Loaded once on mount via `useMemo(loadState, [])`.
 
 ### Playback engine
-`useEffect` with `setInterval(1000ms)` in `AppProvider`. Runs only when `np.playing === true`. Advances `pos` by `speed` each tick, auto-stops at `book.secs`, tracks current chapter index, writes progress for owned books.
+`useEffect` with `setInterval(1000ms)` in `AppProvider`. Runs only when `np.playing === true`. Each tick:
+1. Advances `pos` by `speed` seconds, auto-stops at `book.secs`, updates chapter index, writes progress for owned books.
+2. Decrements `sleep.remaining` by 1; when it hits 0, clears `sleep` and sets `playing: false`.
 
 ---
 
@@ -253,16 +296,34 @@ Horizontal scrolling carousel section. Hidden scrollbars via `.ge-scroll`.
 Width 252px. Shows Logo, nav items (Home/Search/Your Library), "Jump back in" recents (last 3 library items), and a "Go Premium" upsell card when `!app.premium`.
 
 ### `MiniPlayer` (`Chrome.tsx`)
-Desktop: 84px bar at bottom of content column. Shows cover, title, narrator, scrubber, transport controls (skip ±15/30s, prev/next chapter, play/pause), speed badge, sleep and chapter-list icon buttons.
+Desktop: 84px bar at bottom of content column. Shows cover, title, narrator, scrubber, transport controls (skip ±15/30s, prev/next chapter, play/pause), speed badge, **`SleepControl`** (live countdown when active), and chapter-list icon button.
 
 Mobile: compact card above `BottomNav`. Shows cover, title, time remaining, play/pause. Progress bar as 2.5px bottom strip.
 
 ### `PlayerDesktop` / `PlayerMobile` (`Player.tsx`)
 Full-screen overlays (`position: absolute, inset: 0, z-index: 50`). Background is a radial gradient using `book.palette[1]`.
 
-Desktop: 440px cover column on the left, scrollable chapter list on the right, transport bar pinned to bottom (`position: absolute, bottom: 40px`).
+Desktop: 440px cover column on the left. Right panel has a **Chapters / Bookmarks tab toggle** (counts shown inline) and a "+ Bookmark" button. Transport bar is pinned to bottom (`position: absolute, bottom: 40px`), includes `SpeedMenu` and `SleepControl`.
 
-Mobile: cover centered, waveform + transport below, speed/sleep/bookmark/list row at very bottom.
+Mobile: cover centered, waveform + transport below. Bottom row has speed button, `SleepControl`, bookmark button (saves + shows `useFlash` toast), and list button that opens `MobileSheet`.
+
+### `SleepControl` (`Player.tsx`)
+```tsx
+<SleepControl size={44} dir="up" iconSize={24} />
+```
+Icon button with a popover menu (Off / 15 / 30 / 45 / 60 min / End of chapter). When a timer is active, the button expands to show a live countdown label and tints with `accentDim`. `dir` controls whether the popover opens upward or downward. Used in `PlayerDesktop`, `PlayerMobile`, and the desktop `MiniPlayer`.
+
+### `BookmarksList` (`Player.tsx`)
+```tsx
+<BookmarksList bookId={np.bookId} />
+```
+Renders bookmarks for one book, sorted by position. Clicking a bookmark calls `goBookmark`. Delete button calls `removeBookmark`. Shows an empty state when no bookmarks exist.
+
+### `useFlash` (`Player.tsx`)
+```ts
+const [node, showFlash] = useFlash()
+```
+Returns a toast node (rendered in the player overlay) and a `showFlash(msg)` trigger. Toast auto-dismisses after 1600ms. Used to confirm "Bookmarked ✓" saves.
 
 ### `Waveform` (`Player.tsx`)
 Renders 130 bars (desktop) or 50 bars (mobile). Bar height is deterministic from `Math.sin(i * 0.5)`. Bars left of `pct` are coloured `T.accent2`, right are `rgba(255,255,255,0.13)`. Pointer drag supported.
