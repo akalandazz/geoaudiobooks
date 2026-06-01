@@ -108,18 +108,167 @@ export function BottomNav() {
   )
 }
 
+// ── Notification bell with dropdown ──
+interface Notif {
+  id: string
+  kind: 'book' | 'premium'
+  bookId?: string
+  title: string
+  body: string
+  ts: number
+  unread: boolean
+  action?: (app: ReturnType<typeof useApp>) => void
+}
+
+const NOTIF_SEED: Notif[] = [
+  { id: 'n1', kind: 'book', bookId: 'neon', title: 'Price drop on your wishlist',
+    body: 'Neon Wolves is now $14.99 — 25% off for the next 2 days.', ts: Date.now() - 1000 * 60 * 24, unread: true,
+    action: (app) => app.openDetail('neon') },
+  { id: 'n2', kind: 'book', bookId: 'machine', title: 'New from authors you follow',
+    body: "Cyrus Mbeki’s The Quiet Machine is now available to listen.", ts: Date.now() - 1000 * 60 * 60 * 5, unread: true,
+    action: (app) => app.openDetail('machine') },
+  { id: 'n3', kind: 'premium', title: 'Your free trial is ready',
+    body: '30 days of unlimited, lossless listening — start anytime.', ts: Date.now() - 1000 * 60 * 60 * 27, unread: false,
+    action: (app) => app.nav('settings') },
+]
+
+function relTime(ts: number) {
+  const d = Math.max(0, Date.now() - ts), m = Math.floor(d / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return m + 'm ago'
+  const h = Math.floor(m / 60)
+  if (h < 24) return h + 'h ago'
+  const dd = Math.floor(h / 24)
+  return dd === 1 ? 'yesterday' : dd + 'd ago'
+}
+
+export function NotifBell({ size = 40, dropRight = 0 }: { size?: number; dropRight?: number }) {
+  const app = useApp()
+  const [open, setOpen] = React.useState(false)
+  const [items, setItems] = React.useState(NOTIF_SEED)
+  const ref = React.useRef<HTMLDivElement>(null)
+  const unread = items.filter(n => n.unread).length
+  React.useEffect(() => {
+    if (!open) return
+    const close = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [open])
+  const markAll = () => setItems(xs => xs.map(n => ({ ...n, unread: false })))
+  const onItem = (n: Notif) => {
+    setItems(xs => xs.map(x => x.id === n.id ? { ...x, unread: false } : x))
+    setOpen(false)
+    if (n.action) n.action(app)
+  }
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <IconBtn size={size} onClick={() => setOpen(o => !o)} title="Notifications"
+        style={{ background: open ? T.elev : T.surface, color: open ? T.text : T.mut, position: 'relative' }}>
+        <GEIcon.bell s={18} />
+        {unread > 0 && (
+          <span style={{ position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 9, background: T.accent, color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.body }}>{unread}</span>
+        )}
+      </IconBtn>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 10px)', right: dropRight, width: 360, maxWidth: '90vw', background: T.surface, border: '1px solid ' + T.line2, borderRadius: 14, boxShadow: T.shadow, padding: 8, zIndex: 60 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px 10px' }}>
+            <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 15, color: T.text }}>Notifications</span>
+            {unread > 0 && <button onClick={markAll} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.accent2, fontFamily: T.body, fontWeight: 700, fontSize: 12.5 }}>Mark all read</button>}
+          </div>
+          <div style={{ height: 1, background: T.line, margin: '0 6px 6px' }} />
+          <div className="ge-scroll" style={{ maxHeight: 360, overflowY: 'auto' }}>
+            {items.length === 0
+              ? <div style={{ padding: '26px 14px', textAlign: 'center', color: T.dim, fontSize: 13 }}>You're all caught up.</div>
+              : items.map(n => {
+                  const b = n.bookId ? GE_BOOK_BY_ID[n.bookId] : null
+                  return (
+                    <button key={n.id} onClick={() => onItem(n)} style={{ display: 'flex', gap: 12, width: '100%', textAlign: 'left', padding: '11px 10px', border: 'none', borderRadius: 10, cursor: 'pointer', background: n.unread ? T.accentDim : 'transparent', transition: 'background .12s', marginBottom: 2 }}
+                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = n.unread ? T.accentDim : T.elev}
+                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = n.unread ? T.accentDim : 'transparent'}>
+                      {b
+                        ? <div style={{ flexShrink: 0 }}><BookCover book={b} w={44} radius={8} /></div>
+                        : <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, background: 'linear-gradient(150deg,#2a1d52,#181030)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.accent2 }}><GEIcon.star s={20} /></div>
+                      }
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                          <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 13.5, color: T.text, flex: 1 }}>{n.title}</span>
+                          <span style={{ fontSize: 11, color: T.dim, flexShrink: 0 }}>{relTime(n.ts)}</span>
+                        </div>
+                        <div style={{ fontFamily: T.body, fontSize: 12.5, color: T.mut, marginTop: 3, lineHeight: 1.45 }}>{n.body}</div>
+                      </div>
+                      {n.unread && <span style={{ width: 8, height: 8, borderRadius: 4, background: T.accent2, flexShrink: 0, marginTop: 5 }} />}
+                    </button>
+                  )
+                })
+            }
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Account menu (desktop avatar dropdown) ──
+export function AccountMenu() {
+  const app = useApp()
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    if (!open) return
+    const close = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [open])
+  const go = (v: string) => { setOpen(false); app.nav(v) }
+  const MItem = ({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) => (
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', color: danger ? '#FB7185' : T.text, fontFamily: T.body, fontWeight: 600, fontSize: 14, borderRadius: 9, transition: 'background .12s' }}
+      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = danger ? 'rgba(251,113,133,0.12)' : T.elev}
+      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'transparent'}>
+      <span style={{ display: 'flex', color: danger ? '#FB7185' : T.mut }}>{icon}</span>{label}
+    </button>
+  )
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <button onClick={() => setOpen(o => !o)} title="Account" style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid ' + (open ? T.line2 : 'transparent'), background: open ? T.surface : 'transparent', borderRadius: 99, padding: '4px 8px 4px 4px', cursor: 'pointer' }}>
+        <div style={{ width: 34, height: 34, borderRadius: 17, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.disp, fontWeight: 700, fontSize: 15, color: '#fff' }}>J</div>
+        <GEIcon.chevD s={15} style={{ color: T.mut, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 10px)', right: 0, width: 244, background: T.surface, border: '1px solid ' + T.line2, borderRadius: 14, boxShadow: T.shadow, padding: 8, zIndex: 60 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 10px 12px' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 20, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.disp, fontWeight: 700, fontSize: 17, color: '#fff', flexShrink: 0 }}>J</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 15, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Jordan Avery</div>
+              <div style={{ fontSize: 12, color: T.mut, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>jordan.avery@example.com</div>
+            </div>
+          </div>
+          <div style={{ height: 1, background: T.line, margin: '0 6px 6px' }} />
+          <MItem icon={<GEIcon.person s={18} />} label="Your profile" onClick={() => go('profile')} />
+          <MItem icon={<GEIcon.library s={18} />} label="Your library" onClick={() => go('library')} />
+          <MItem icon={<GEIcon.gear s={18} />} label="Settings" onClick={() => go('settings')} />
+          <div style={{ height: 1, background: T.line, margin: '6px 6px' }} />
+          <MItem icon={<GEIcon.logout s={18} />} label="Sign out" danger onClick={() => { setOpen(false); app.signOut() }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Top bar (desktop) ──
 export function TopBar({ search }: { search?: string }) {
   const app = useApp()
+  const onSearchView = app.view === 'search'
   return (
     <div style={{ height: 66, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 16, padding: '0 28px', borderBottom: '1px solid ' + T.line }}>
-      <div onClick={() => app.nav('search')} style={{
-        display: 'flex', alignItems: 'center', gap: 9, background: T.surface,
-        border: '1px solid ' + T.line, borderRadius: 22, padding: '9px 16px', width: 380, cursor: 'text',
-      }}>
-        <GEIcon.search s={18} style={{ color: T.mut }} />
-        <span style={{ color: T.dim, fontSize: 14 }}>{search || 'Search titles, authors, narrators…'}</span>
-      </div>
+      {!onSearchView && (
+        <div onClick={() => app.nav('search')} style={{
+          display: 'flex', alignItems: 'center', gap: 9, background: T.surface,
+          border: '1px solid ' + T.line, borderRadius: 22, padding: '9px 16px', width: 380, cursor: 'text',
+        }}>
+          <GEIcon.search s={18} style={{ color: T.mut }} />
+          <span style={{ color: T.dim, fontSize: 14 }}>{search || 'Search titles, authors, narrators…'}</span>
+        </div>
+      )}
       <div style={{ flex: 1 }} />
       {!app.premium && (
         <div onClick={() => app.nav('settings')} style={{ border: '1px solid ' + T.line2, color: T.text, padding: '8px 16px', borderRadius: 20, fontWeight: 700, fontSize: 13, fontFamily: T.disp, cursor: 'pointer' }}>Premium</div>
@@ -130,8 +279,8 @@ export function TopBar({ search }: { search?: string }) {
           <span style={{ position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 9, background: T.accent, color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.body }}>{app.cart.length}</span>
         )}
       </IconBtn>
-      <IconBtn style={{ background: T.surface }} title="Notifications"><GEIcon.bell s={18} /></IconBtn>
-      <div onClick={() => app.nav('profile')} style={{ width: 38, height: 38, borderRadius: 19, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)', cursor: 'pointer', flexShrink: 0 }} />
+      <NotifBell />
+      <AccountMenu />
     </div>
   )
 }
@@ -152,7 +301,7 @@ export function MobileTop({ title }: { title?: string }) {
             <span style={{ position: 'absolute', top: 0, right: 0, width: 16, height: 16, borderRadius: 8, background: T.accent, color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{app.cart.length}</span>
           )}
         </IconBtn>
-        <IconBtn size={38} style={{ background: T.surface }}><GEIcon.bell s={18} /></IconBtn>
+        <NotifBell size={38} />
       </div>
     </div>
   )

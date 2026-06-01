@@ -226,7 +226,6 @@ export function Settings() {
         <Group title="Account">
           <Row label="Email" desc="jordan.avery@example.com" control={<Btn kind="ghost" size="sm">Change</Btn>} />
           <Row label="Password" desc="Last changed 3 months ago" control={<Btn kind="ghost" size="sm">Update</Btn>} />
-          <Row label="Sign out" control={<Btn kind="ghost" size="sm" onClick={() => app.signOut()}>Sign out</Btn>} />
         </Group>
       </div>
     </Screen>
