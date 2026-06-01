@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react'
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react'
 import { GE_BOOKS, GE_BOOK_BY_ID, GE_CHAPTERS, Book } from './bookdata'
 
 export interface NowPlaying {
@@ -9,6 +9,22 @@ export interface NowPlaying {
   pos: number;
   playing: boolean;
   speed: number;
+}
+
+export interface Bookmark {
+  id: string;
+  bookId: string;
+  chapter: number;
+  pos: number;
+  note: string;
+  ts: number;
+}
+
+export interface Sleep {
+  mode: 'time' | 'chapter';
+  minutes?: number;
+  remaining: number;
+  total: number;
 }
 
 export interface AppState {
@@ -32,6 +48,13 @@ export interface AppState {
   goChapter: (i: number) => void;
   setSpeed: (s: number) => void;
   cycleSpeed: () => void;
+  bookmarks: Bookmark[];
+  addBookmark: (note?: string) => void;
+  removeBookmark: (id: string) => void;
+  goBookmark: (bm: Bookmark) => void;
+  sleep: Sleep | null;
+  setSleepTimer: (opt: 'off' | 'chapter' | number | null) => void;
+  cancelSleep: () => void;
   cart: string[];
   addToCart: (id: string) => void;
   removeFromCart: (id: string) => void;
@@ -56,6 +79,11 @@ export interface AppState {
 export const AppCtx = createContext<AppState | null>(null)
 export const useApp = () => useContext(AppCtx)!
 
+const SEED_BOOKMARKS: Bookmark[] = [
+  { id: 'bm1', bookId: 'salt', chapter: 2, pos: 14760, note: 'The cliffside passage', ts: Date.now() - 86400000 },
+  { id: 'bm2', bookId: 'ashfall', chapter: 4, pos: 38040, note: '', ts: Date.now() - 3600000 },
+]
+
 const SEED = {
   authed: false,
   library: ['salt', 'machine', 'ashfall', 'lighthouse'] as string[],
@@ -63,6 +91,7 @@ const SEED = {
   wishlist: ['neon', 'glass'] as string[],
   cart: ['cobalt'] as string[],
   premium: false,
+  bookmarks: SEED_BOOKMARKS,
 }
 
 const SPEEDS = [0.8, 1, 1.25, 1.5, 1.75, 2]
@@ -104,6 +133,8 @@ export function AppProvider({ children, startAuthed = false, startView = 'home' 
   const [progress, setProgress] = useState<Record<string, number>>(init.progress || {})
   const [wishlist, setWishlist] = useState<string[]>(init.wishlist || [])
   const [premium, setPremium] = useState<boolean>(init.premium || false)
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(init.bookmarks || SEED_BOOKMARKS)
+  const [sleep, setSleep] = useState<Sleep | null>(null)
   const [search, setSearch] = useState('')
   const [lastOrder, setLastOrder] = useState<string[]>([])
   const [np, setNp] = useState<NowPlaying | null>(init.np || null)
@@ -112,13 +143,13 @@ export function AppProvider({ children, startAuthed = false, startView = 'home' 
   // Persist
   useEffect(() => {
     const data = {
-      authed, library, progress, wishlist, cart, premium,
+      authed, library, progress, wishlist, cart, premium, bookmarks,
       np: np ? { bookId: np.bookId, chapter: np.chapter, pos: np.pos, speed: np.speed, playing: false } : null,
     }
     try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch { /* ignore */ }
-  }, [authed, library, progress, wishlist, cart, premium, np])
+  }, [authed, library, progress, wishlist, cart, premium, bookmarks, np])
 
-  // Playback engine
+  // Playback engine with sleep countdown
   useEffect(() => {
     if (!np || !np.playing) return
     const id = setInterval(() => {
@@ -133,6 +164,16 @@ export function AppProvider({ children, startAuthed = false, startView = 'home' 
         for (let i = 0; i < chs.length; i++) if (pos >= chs[i].start) chapter = i
         if (library.includes(p.bookId)) setProgress(pg => ({ ...pg, [p.bookId]: pos }))
         return { ...p, pos, playing, chapter }
+      })
+      // sleep countdown
+      setSleep(s => {
+        if (!s || s.remaining == null) return s
+        const remaining = s.remaining - 1
+        if (remaining <= 0) {
+          setNp(p => p ? { ...p, playing: false } : p)
+          return null
+        }
+        return { ...s, remaining }
       })
     }, 1000)
     return () => clearInterval(id)
@@ -189,6 +230,46 @@ export function AppProvider({ children, startAuthed = false, startView = 'home' 
     return { ...p, speed: SPEEDS[(i + 1) % SPEEDS.length] }
   })
 
+  // Bookmarks
+  const addBookmark = useCallback((note?: string) => {
+    setNp(p => {
+      if (!p) return p
+      const b = GE_BOOK_BY_ID[p.bookId]
+      const chs = GE_CHAPTERS(b)
+      const ch = chs[p.chapter] || chs[0]
+      setBookmarks(bs => {
+        if (bs.some(x => x.bookId === p.bookId && Math.abs(x.pos - p.pos) < 2)) return bs
+        return [{ id: 'bm' + Date.now(), bookId: p.bookId, chapter: p.chapter, pos: p.pos, note: note || ch.title, ts: Date.now() }, ...bs]
+      })
+      return p
+    })
+  }, [])
+  const removeBookmark = (id: string) => setBookmarks(bs => bs.filter(x => x.id !== id))
+  const goBookmark = (bm: Bookmark) => {
+    setNp(p => ({ bookId: bm.bookId, chapter: bm.chapter, pos: bm.pos, playing: true, speed: (p?.speed) || 1 }))
+  }
+
+  // Sleep timer
+  const setSleepTimer = (opt: 'off' | 'chapter' | number | null) => {
+    if (opt === 'off' || opt == null) { setSleep(null); return }
+    if (opt === 'chapter') {
+      setNp(p => {
+        if (!p) return p
+        const b = GE_BOOK_BY_ID[p.bookId]
+        const chs = GE_CHAPTERS(b)
+        const c = chs[p.chapter] || chs[0]
+        const secs = Math.max(5, Math.round((c.start + c.len - p.pos) / (p.speed || 1)))
+        setSleep({ mode: 'chapter', remaining: secs, total: secs })
+        return { ...p, playing: true }
+      })
+      return
+    }
+    const mins = opt as number
+    setSleep({ mode: 'time', minutes: mins, remaining: mins * 60, total: mins * 60 })
+    setNp(p => p ? { ...p, playing: true } : p)
+  }
+  const cancelSleep = () => setSleep(null)
+
   const addToCart = (id: string) => setCart(c => c.includes(id) ? c : [...c, id])
   const removeFromCart = (id: string) => setCart(c => c.filter(x => x !== id))
   const inCart = (id: string) => cart.includes(id)
@@ -216,6 +297,8 @@ export function AppProvider({ children, startAuthed = false, startView = 'home' 
     mobile, w, authed, view, bookId, nav, back, openDetail,
     nowPlaying: np, openPlayer, openPlayerAt, closePlayer, playerOpen,
     togglePlay, seekRel, seekPct, skipChapter, goChapter, setSpeed, cycleSpeed,
+    bookmarks, addBookmark, removeBookmark, goBookmark,
+    sleep, setSleepTimer, cancelSleep,
     cart, addToCart, removeFromCart, inCart, library, isOwned, buyNow, placeOrder, lastOrder,
     wishlist, toggleWishlist, premium, setPremium, search, setSearch,
     progress, continueBooks, signIn, signOut,

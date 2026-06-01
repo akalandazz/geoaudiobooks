@@ -5,6 +5,7 @@ import { T } from './theme'
 import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { IconBtn, Scrubber } from './Atoms'
+import { SleepControl } from './Player'
 import { GE_BOOK_BY_ID, GE_BOOKS, Book, fmtClock, fmt } from './bookdata'
 import { useApp } from './AppContext'
 
@@ -257,7 +258,7 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
       </div>
       <div style={{ width: 200, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, color: T.mut }}>
         <button onClick={() => app.cycleSpeed()} style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 12.5, border: '1px solid ' + T.line, padding: '5px 9px', borderRadius: 7, background: 'transparent', color: T.text, cursor: 'pointer' }}>{np.speed}×</button>
-        <IconBtn size={34}><GEIcon.sleep s={19} /></IconBtn>
+        <SleepControl size={34} dir="up" iconSize={19} />
         <IconBtn size={34} onClick={() => app.openPlayer(b.id)}><GEIcon.list s={19} /></IconBtn>
       </div>
     </div>

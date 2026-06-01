@@ -1,12 +1,12 @@
 'use client'
 
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { T } from './theme'
 import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { IconBtn } from './Atoms'
 import { GE_BOOK_BY_ID, GE_CHAPTERS, fmt } from './bookdata'
-import { useApp } from './AppContext'
+import { useApp, Bookmark } from './AppContext'
 
 // ── Waveform ──
 interface WaveformProps { pct: number; count: number; onSeek: (pct: number) => void; height?: number }
@@ -28,6 +28,119 @@ export function Waveform({ pct, count, onSeek, height = 40 }: WaveformProps) {
     <div ref={ref} onPointerDown={down} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, height, cursor: 'pointer' }}>
       {bars.map((h, i) => (
         <span key={i} style={{ flex: 1, height: h, borderRadius: 2, background: (i / count) < (pct / 100) ? T.accent2 : 'rgba(255,255,255,0.13)' }} />
+      ))}
+    </div>
+  )
+}
+
+// ── Flash toast ──
+export function useFlash(): [React.ReactNode, (msg: string) => void] {
+  const [msg, setMsg] = useState<string | null>(null)
+  const show = useCallback((m: string) => setMsg(m), [])
+  useEffect(() => {
+    if (!msg) return
+    const id = setTimeout(() => setMsg(null), 1600)
+    return () => clearTimeout(id)
+  }, [msg])
+  const node = msg ? (
+    <div style={{ position: 'absolute', bottom: 120, left: '50%', transform: 'translateX(-50%)', background: T.elev2, color: T.text, padding: '11px 20px', borderRadius: 99, boxShadow: T.shadow, fontFamily: T.disp, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 9, zIndex: 60, whiteSpace: 'nowrap' }}>
+      <GEIcon.check s={16} style={{ color: T.good }} />{msg}
+    </div>
+  ) : null
+  return [node, show]
+}
+
+// ── Sleep timer control ──
+const SLEEP_OPTS: [string, 'off' | 'chapter' | number][] = [
+  ['Off', 'off'], ['15 min', 15], ['30 min', 30], ['45 min', 45], ['1 hour', 60], ['End of chapter', 'chapter'],
+]
+export function SleepControl({ size = 44, dir = 'up', iconSize }: { size?: number; dir?: 'up' | 'down'; iconSize?: number }) {
+  const app = useApp()
+  const [open, setOpen] = useState(false)
+  const s = app.sleep
+  const active = !!s
+  const label = active ? (s!.mode === 'chapter' ? 'Chapter' : fmt(s!.remaining)) : null
+  return (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        title="Sleep timer"
+        style={{ display: 'flex', alignItems: 'center', gap: 7, height: size, padding: active ? '0 12px' : '0', width: active ? 'auto' : size, justifyContent: 'center', borderRadius: 99, border: 'none', cursor: 'pointer', background: active ? T.accentDim : 'transparent', color: active ? T.accent2 : T.mut, transition: 'background .15s, color .15s' }}
+        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = T.elev }}
+        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+      >
+        <GEIcon.sleep s={iconSize || Math.round(size * 0.52)} />
+        {active && <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }}>{label}</span>}
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1 }} />
+          <div style={{ position: 'absolute', [dir === 'up' ? 'bottom' : 'top']: '124%', left: '50%', transform: 'translateX(-50%)', background: T.elev2, borderRadius: 13, padding: 7, boxShadow: T.shadow, zIndex: 2, minWidth: 188 }}>
+            <div style={{ padding: '6px 12px 8px', fontFamily: T.disp, fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.mut, display: 'flex', alignItems: 'center', gap: 7 }}>
+              <GEIcon.sleep s={14} />Sleep timer
+            </div>
+            {active && (
+              <div style={{ margin: '0 6px 7px', padding: '8px 11px', borderRadius: 9, background: T.accentDim, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontFamily: T.body, fontSize: 13, color: T.accent2, fontWeight: 600 }}>{s!.mode === 'chapter' ? 'Ends with chapter' : 'Stops in'}</span>
+                <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 14, color: T.accent2, fontVariantNumeric: 'tabular-nums' }}>{fmt(s!.remaining)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {SLEEP_OPTS.map(([lbl, val]) => {
+                const isActive = (val === 'off' && !active) || (active && s!.mode === 'time' && s!.minutes === val) || (active && s!.mode === 'chapter' && val === 'chapter')
+                return (
+                  <button key={lbl} onClick={() => { app.setSleepTimer(val); setOpen(false) }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 13px', borderRadius: 8, border: 'none', cursor: 'pointer', background: isActive ? T.accent : 'transparent', color: isActive ? '#fff' : T.text, fontFamily: T.body, fontWeight: 600, fontSize: 13.5, textAlign: 'left', width: '100%' }}
+                    onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = T.elev }}
+                    onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}>
+                    {lbl}{isActive && val !== 'off' && <GEIcon.check s={15} />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Bookmarks list ──
+export function BookmarksList({ bookId }: { bookId: string }) {
+  const app = useApp()
+  const list = app.bookmarks.filter(bm => bm.bookId === bookId).sort((a, b) => a.pos - b.pos)
+  const b = GE_BOOK_BY_ID[bookId]
+  const chs = b ? GE_CHAPTERS(b) : []
+  if (list.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px 20px', color: T.dim }}>
+        <GEIcon.bookmark s={30} style={{ color: T.elev2, marginBottom: 12 }} />
+        <div style={{ fontFamily: T.disp, fontSize: 15, color: T.mut }}>No bookmarks yet</div>
+        <div style={{ fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>Tap the bookmark button to save your spot.</div>
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {list.map(bm => (
+        <div key={bm.id} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '11px 12px', borderRadius: 11, cursor: 'pointer' }}
+          onClick={() => app.goBookmark(bm)}
+          onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = T.elev}
+          onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}>
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: T.accentDim, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <GEIcon.bookmark s={15} style={{ color: T.accent2 }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: T.body, fontWeight: 600, fontSize: 14, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bm.note || (chs[bm.chapter] && chs[bm.chapter].title) || 'Bookmark'}</div>
+            <div style={{ fontSize: 12, color: T.mut, marginTop: 1 }}>{(chs[bm.chapter] ? chs[bm.chapter].title + ' · ' : '')}{fmt(bm.pos)}</div>
+          </div>
+          <button onClick={e => { e.stopPropagation(); app.removeBookmark(bm.id) }} title="Remove"
+            style={{ width: 28, height: 28, borderRadius: 99, border: 'none', background: 'transparent', color: T.dim, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = T.elev2; (e.currentTarget as HTMLButtonElement).style.color = T.text }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = T.dim }}>
+            <GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} />
+          </button>
+        </div>
       ))}
     </div>
   )
@@ -63,6 +176,9 @@ export function PlayerDesktop() {
   const chapters = GE_CHAPTERS(b)
   const pct = (np.pos / b.secs) * 100
   const speeds = [0.8, 1, 1.25, 1.5, 1.75, 2]
+  const [panel, setPanel] = useState<'Chapters' | 'Bookmarks'>('Chapters')
+  const [flash, showFlash] = useFlash()
+  const bmCount = app.bookmarks.filter(x => x.bookId === np.bookId).length
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 50, fontFamily: T.body, color: T.text, overflow: 'hidden',
@@ -82,6 +198,7 @@ export function PlayerDesktop() {
       </div>
 
       <div style={{ display: 'flex', padding: '14px 44px 0', gap: 48, height: 'calc(100% - 64px - 200px)' }}>
+        {/* left: cover + title */}
         <div style={{ width: 440, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
           <BookCover book={b} w={440} radius={20} style={{ boxShadow: '0 40px 90px rgba(0,0,0,0.6)' }} />
           <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -91,29 +208,54 @@ export function PlayerDesktop() {
             </div>
           </div>
         </div>
+
+        {/* right: chapters / bookmarks panel */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 18 }}>Chapters</span>
-            <span style={{ fontSize: 12.5, color: T.mut }}>{b.dur} · {chapters.length} chapters</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12 }}>
+            {/* tab toggle */}
+            <div style={{ display: 'flex', gap: 4, background: T.surface, borderRadius: 11, padding: 4 }}>
+              {(['Chapters', 'Bookmarks'] as const).map(t => (
+                <button key={t} onClick={() => setPanel(t)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 15px', borderRadius: 8, border: 'none', cursor: 'pointer', background: panel === t ? T.elev2 : 'transparent', color: panel === t ? T.text : T.mut, fontFamily: T.disp, fontWeight: 700, fontSize: 14 }}>
+                  {t}
+                  <span style={{ fontSize: 11.5, color: panel === t ? T.accent2 : T.dim }}>{t === 'Chapters' ? chapters.length : bmCount}</span>
+                </button>
+              ))}
+            </div>
+            {/* bookmark button */}
+            <button
+              onClick={() => { app.addBookmark(); showFlash('Bookmarked'); setPanel('Bookmarks') }}
+              title="Bookmark current position"
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 15px', borderRadius: 99, border: '1px solid ' + T.line2, background: 'transparent', color: T.text, cursor: 'pointer', fontFamily: T.disp, fontWeight: 700, fontSize: 13.5, whiteSpace: 'nowrap' }}
+              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = T.surface}
+              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'transparent'}>
+              <GEIcon.bookmark s={15} />Bookmark
+            </button>
           </div>
-          <div className="ge-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {chapters.map(c => {
-              const active = c.i === np.chapter
-              return (
-                <div key={c.i} onClick={() => app.goChapter(c.i)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 14px', borderRadius: 11, background: active ? T.elev : 'transparent', cursor: 'pointer' }}>
-                  <span style={{ width: 22, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: active ? T.accent2 : T.dim, fontWeight: 700 }}>{c.i === 0 ? '–' : c.i}</span>
-                  {active && np.playing
-                    ? <div style={{ display: 'flex', gap: 2.5, alignItems: 'flex-end', height: 16, width: 18 }}>
-                        {[0, 1, 2, 3].map(k => <span key={k} className="ge-eq" style={{ width: 3, background: T.accent2, borderRadius: 2, animationDelay: (k * 0.15) + 's' }} />)}
-                      </div>
-                    : <GEIcon.play s={14} style={{ color: T.dim, width: 18 }} />
-                  }
-                  <span style={{ flex: 1, fontSize: 14, color: active ? T.text : T.mut, fontWeight: active ? 600 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.title}</span>
-                  <span style={{ fontSize: 12.5, color: T.dim, fontVariantNumeric: 'tabular-nums' }}>{fmt(c.len)}</span>
-                </div>
-              )
-            })}
-          </div>
+
+          {panel === 'Bookmarks' ? (
+            <div className="ge-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+              <BookmarksList bookId={np.bookId} />
+            </div>
+          ) : (
+            <div className="ge-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {chapters.map(c => {
+                const active = c.i === np.chapter
+                return (
+                  <div key={c.i} onClick={() => app.goChapter(c.i)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 14px', borderRadius: 11, background: active ? T.elev : 'transparent', cursor: 'pointer' }}>
+                    <span style={{ width: 22, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: active ? T.accent2 : T.dim, fontWeight: 700 }}>{c.i === 0 ? '–' : c.i}</span>
+                    {active && np.playing
+                      ? <div style={{ display: 'flex', gap: 2.5, alignItems: 'flex-end', height: 16, width: 18 }}>
+                          {[0, 1, 2, 3].map(k => <span key={k} className="ge-eq" style={{ width: 3, background: T.accent2, borderRadius: 2, animationDelay: (k * 0.15) + 's' }} />)}
+                        </div>
+                      : <GEIcon.play s={14} style={{ color: T.dim, width: 18 }} />
+                    }
+                    <span style={{ flex: 1, fontSize: 14, color: active ? T.text : T.mut, fontWeight: active ? 600 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.title}</span>
+                    <span style={{ fontSize: 12.5, color: T.dim, fontVariantNumeric: 'tabular-nums' }}>{fmt(c.len)}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -133,7 +275,61 @@ export function PlayerDesktop() {
           </button>
           <IconBtn size={48} onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
           <IconBtn size={44} onClick={() => app.skipChapter(1)}><GEIcon.next s={26} /></IconBtn>
-          <IconBtn size={44}><GEIcon.sleep s={24} /></IconBtn>
+          <SleepControl size={44} dir="up" iconSize={24} />
+        </div>
+      </div>
+      {flash}
+    </div>
+  )
+}
+
+// ── Mobile bottom sheet ──
+function MobileSheet({ bookId, tab, setTab, onClose }: { bookId: string; tab: 'chapters' | 'bookmarks'; setTab: (t: 'chapters' | 'bookmarks') => void; onClose: () => void }) {
+  const app = useApp()
+  const np = app.nowPlaying
+  const b = GE_BOOK_BY_ID[bookId]
+  const chapters = b ? GE_CHAPTERS(b) : []
+  const bmCount = app.bookmarks.filter(x => x.bookId === bookId).length
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 70, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+      <div style={{ position: 'relative', background: T.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '72%', display: 'flex', flexDirection: 'column', boxShadow: '0 -20px 60px rgba(0,0,0,0.5)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+          <div style={{ width: 38, height: 4, borderRadius: 2, background: T.line2 }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 18px 14px', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 4, background: T.elev, borderRadius: 10, padding: 4 }}>
+            {(['chapters', 'bookmarks'] as const).map(k => (
+              <button key={k} onClick={() => setTab(k)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', background: tab === k ? T.elev2 : 'transparent', color: tab === k ? T.text : T.mut, fontFamily: T.disp, fontWeight: 700, fontSize: 13.5 }}>
+                {k === 'chapters' ? 'Chapters' : 'Bookmarks'}
+                <span style={{ fontSize: 11, color: tab === k ? T.accent2 : T.dim }}>{k === 'chapters' ? chapters.length : bmCount}</span>
+              </button>
+            ))}
+          </div>
+          {tab === 'bookmarks' && (
+            <button onClick={() => app.addBookmark()} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 99, border: '1px solid ' + T.line2, background: 'transparent', color: T.text, cursor: 'pointer', fontFamily: T.disp, fontWeight: 700, fontSize: 13 }}>
+              <GEIcon.plus s={15} />Add
+            </button>
+          )}
+        </div>
+        <div className="ge-scroll" style={{ overflowY: 'auto', padding: '0 12px 28px' }}>
+          {tab === 'bookmarks' ? (
+            <BookmarksList bookId={bookId} />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {chapters.map(c => {
+                const active = np ? c.i === np.chapter : false
+                return (
+                  <div key={c.i} onClick={() => { app.goChapter(c.i); onClose() }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 12px', borderRadius: 11, background: active ? T.elev : 'transparent', cursor: 'pointer' }}>
+                    <span style={{ width: 20, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: active ? T.accent2 : T.dim, fontWeight: 700 }}>{c.i === 0 ? '–' : c.i}</span>
+                    <span style={{ flex: 1, fontSize: 14.5, color: active ? T.text : T.mut, fontWeight: active ? 600 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.title}</span>
+                    <span style={{ fontSize: 12.5, color: T.dim, fontVariantNumeric: 'tabular-nums' }}>{fmt(c.len)}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -151,6 +347,8 @@ export function PlayerMobile() {
   const pct = (np.pos / b.secs) * 100
   const ch = chapters[np.chapter] || chapters[0]
   const coverW = Math.min(330, app.w - 60)
+  const [sheet, setSheet] = useState<'chapters' | 'bookmarks' | null>(null)
+  const [flash, showFlash] = useFlash()
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 50, fontFamily: T.body, color: T.text, overflow: 'hidden', display: 'flex', flexDirection: 'column',
@@ -192,10 +390,23 @@ export function PlayerMobile() {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 34px 38px', color: T.mut }}>
         <button onClick={() => app.cycleSpeed()} style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 13, color: T.text, background: 'transparent', border: 'none', cursor: 'pointer' }}>{np.speed}×</button>
-        <IconBtn size={38}><GEIcon.sleep s={21} /></IconBtn>
-        <IconBtn size={38}><GEIcon.bookmark s={20} /></IconBtn>
-        <IconBtn size={38}><GEIcon.list s={21} /></IconBtn>
+        <SleepControl size={38} dir="up" iconSize={21} />
+        <IconBtn size={38} onClick={() => { app.addBookmark(); showFlash('Bookmarked') }} title="Add bookmark">
+          <GEIcon.bookmark s={20} />
+        </IconBtn>
+        <IconBtn size={38} onClick={() => setSheet('chapters')} title="Chapters & bookmarks">
+          <GEIcon.list s={21} />
+        </IconBtn>
       </div>
+      {sheet && (
+        <MobileSheet
+          bookId={np.bookId}
+          tab={sheet}
+          setTab={setSheet}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {flash}
     </div>
   )
 }
