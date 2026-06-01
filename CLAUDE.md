@@ -24,3 +24,6 @@ Full spec: `frontend/webapp/spec.md` — read before editing any component.
 - `app/globals.css` → `@import "tailwindcss"` (v4); CSS hooks: `ge-eq`, `ge-scroll`, `ge-card`
 - `app/components/` → all SPA components; styling is inline `style` props only
 - Single-page routing via `view` state string; mobile breakpoint `window.innerWidth < 760`
+- `app/lib/api.ts` → typed fetch client for the FastAPI backend; call `setToken(t)` after auth
+- All user data (cart, library, wishlist, bookmarks, progress) is backend-authoritative when signed in
+- Book catalog loaded from `GET /books` on startup; `GE_BOOK_BY_ID` / `GE_CHAPTERS` in `bookdata.ts` are fallbacks only

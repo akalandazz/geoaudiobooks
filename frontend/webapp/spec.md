@@ -46,50 +46,84 @@ interface Book {
 interface Chapter { i: number; title: string; len: number; start: number }
 ```
 
-12 books. `GE_BOOK_BY_ID` — `Record<string, Book>`. `GE_CHAPTERS(book)` — 10 chapters from `book.secs`.  
+`GE_BOOK_BY_ID` and `GE_CHAPTERS(book)` are **fallbacks only** — real data comes from the API. Components read `app.booksById` / `app.chaptersById` and fall back to these when the API hasn't loaded yet.  
 `fmt(s)` → `"h:mm:ss"` / `"m:ss"` · `fmtClock(s)` → `"7h 12m"` / `"45m"`
 
 ---
 
-## 4. App state (`app/components/AppContext.tsx`)
+## 4. API client (`app/lib/api.ts`)
+
+Typed fetch wrapper around the FastAPI backend (`NEXT_PUBLIC_API_URL`, default `http://localhost:8000`).
+
+- `setToken(t)` / `getToken()` — module-level JWT storage (called by AppContext after sign-in)
+- `toBook(BookOut)` → `Book` · `toChapter(ChapterOut)` → `Chapter` · `toBookmark(BookmarkOut)` → `Bookmark`
+- `ApiError` — thrown on non-2xx; has `.status: number`
+- One exported function per endpoint: `signIn`, `signUp`, `getMe`, `updateMe`, `getBooks`, `getChapters`, `getCart`, `addToCart`, `removeFromCart`, `checkout`, `getLibrary`, `getProgress`, `updateProgress`, `getBookmarks`, `addBookmark`, `deleteBookmark`, `getWishlist`, `addToWishlist`, `removeFromWishlist`
+
+---
+
+## 5. App state (`app/components/AppContext.tsx`)
 
 Access with `useApp()`.
 
 ```ts
-authed: boolean; view: string; bookId: string
+// Auth / user
+authed: boolean; loading: boolean; user: UserOut | null
+signIn(email, password): Promise<void>   // throws ApiError on failure
+signUp(email, password, name): Promise<void>
+signOut(): void
+
+// Book catalog (authoritative from API, falls back to GE_BOOK_BY_ID)
+booksById: Record<string, Book>
+chaptersById: Record<string, Chapter[]>
+setChapters(bookId, chs): void   // Detail component calls this after fetch
+
+// User-specific state (authoritative from API when authed)
 library: string[]; cart: string[]; wishlist: string[]
 progress: Record<string, number>   // bookId → seconds
-premium: boolean; search: string; lastOrder: string[]
+bookmarks: Bookmark[]
+premium: boolean   // mirrors user.is_premium
+
+// Commerce
+addToCart(id): void          // optimistic + API
+removeFromCart(id): void     // optimistic + API
+placeOrder(): Promise<void>  // throws ApiError on failure
+buyNow(id): void             // adds to cart + nav('checkout')
+toggleWishlist(id): void     // optimistic + API
+inCart(id): boolean; isOwned(id): boolean
+
+// Playback
 nowPlaying: NowPlaying | null; playerOpen: boolean
-bookmarks: Bookmark[]; sleep: Sleep | null
+openPlayer(id): void; openPlayerAt(id, chapter): void; closePlayer(): void
+togglePlay(); seekRel(s); seekPct(pct); skipChapter(d); goChapter(i); cycleSpeed(); setSpeed(s)
+
+// Bookmarks
+addBookmark(note?): void   // optimistic; syncs to API when authed
+removeBookmark(id): void
+goBookmark(bm): void
+
+// Sleep / misc
+sleep: Sleep | null; setSleepTimer(...); cancelSleep()
+search: string; setSearch(v): void
+lastOrder: string[]; continueBooks: Book[]
 mobile: boolean; w: number
-tweaks: { accent: [string, string]; base: string; displayFont: string }
 
 interface NowPlaying { bookId: string; chapter: number; pos: number; playing: boolean; speed: number }
-// speed cycles: [0.8, 1, 1.25, 1.5, 1.75, 2]
-interface Bookmark { id: string; bookId: string; chapter: number; pos: number; note: string; ts: number }
-interface Sleep { mode: 'time' | 'chapter'; minutes?: number; remaining: number; total: number }
+interface Bookmark   { id: string; bookId: string; chapter: number; pos: number; note: string; ts: number }
+interface Sleep      { mode: 'time'|'chapter'; minutes?: number; remaining: number; total: number }
 ```
 
-**Navigation:** `nav(view)` pushes history · `back()` pops · `openDetail(id)` sets bookId + nav
+**Init flow:** On mount — fetches `GET /books?limit=100`; if `localStorage 'geaudio.token'` exists, calls `GET /users/me` then loads cart/library/wishlist/bookmarks/progress in parallel. `loading: true` until complete (Shell shows blank dark screen to prevent auth flash).
 
-**Player:** `openPlayer(id)` · `openPlayerAt(id, chapter)` · `closePlayer()` · `togglePlay()` · `seekRel(s)` · `seekPct(pct)` · `skipChapter(d)` · `goChapter(i)` · `cycleSpeed()` · `setSpeed(s)`
+**Persistence (`localStorage 'geaudio.state.v1'`):** Only `nowPlaying` (with `playing:false`) and `progress`. Cart/library/wishlist/bookmarks are backend-authoritative. JWT stored separately under `'geaudio.token'`.
 
-**Bookmarks:** `addBookmark(note?)` (no-op within 2s of existing) · `removeBookmark(id)` · `goBookmark(bm)`
-
-**Sleep:** `setSleepTimer('off'|null|'chapter'|minutes)` · `cancelSleep()`
-
-**Commerce:** `addToCart(id)` · `removeFromCart(id)` · `inCart(id)` · `isOwned(id)` · `buyNow(id)` · `placeOrder()` · `toggleWishlist(id)`
+**Playback engine:** 1s interval when `np.playing`. Advances `pos` by `speed`, updates chapter index, uses `booksById`/`chaptersById` with `GE_*` fallbacks. **Progress sync:** every 10s while playing, `PUT /progress/{bookId}` fires via `setInterval` reading state through refs.
 
 **`continueBooks`** — library books with `progress > 0`, sorted by % complete.
 
-**Persistence:** `localStorage 'geaudio.state.v1'`. `nowPlaying` saved with `playing: false`. `sleep` not persisted.
-
-**Playback engine:** 1s interval when `np.playing`. Advances `pos` by `speed`, updates chapter index, decrements `sleep.remaining` (stops + clears at 0).
-
 ---
 
-## 5. Layout
+## 6. Layout
 
 Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 
@@ -99,7 +133,7 @@ Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 
 ---
 
-## 6. Components
+## 7. Components
 
 **`BookCover`** — typographic cover from `palette` + `motif`. Omit `w` for CSS sizing (ResizeObserver scales fonts).
 ```tsx
@@ -132,7 +166,7 @@ Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 
 ---
 
-## 7. Screens
+## 8. Screens
 
 | View | Component | File |
 |---|---|---|
@@ -144,17 +178,19 @@ Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 
 Auth (`Auth.tsx`) outside router — `Shell` returns `<Auth />` when `!app.authed`.
 
-- **Home:** Hero = `GE_BOOK_BY_ID['machine']`. "Continue" row hidden until `continueBooks.length > 0`.
-- **Search:** Filters on `q`, `genre` pill, `sort`. Sort pills hidden mobile.
-- **Detail:** Overview / Chapters / Reviews tabs. Resets to Overview on `bookId` change.
-- **Cart:** Subtotal → −30% Premium → +8% tax.
-- **Library:** Listening (resume cards) / Owned (grid) / Wishlist (grid).
-- **Settings:** `setPremium` toggle · `signOut()` → `authed: false`.
+- **Home:** Hero = `app.booksById['machine']` (or top-rated fallback). "Continue" row hidden until `continueBooks.length > 0`.
+- **Search:** Calls `GET /books?q=...&genre=...&sort=...&page=...`. 300ms debounce on typing. "Load more" pagination. Falls back to `Object.values(booksById)` if API unreachable.
+- **Detail:** Fetches `GET /books/{id}/chapters` on open; caches in `app.chaptersById`. Falls back to `GE_CHAPTERS`. Resets tab to Overview on `bookId` change.
+- **Cart:** Subtotal → −30% Premium → +8% tax. `placeOrder()` calls `POST /orders/checkout`.
+- **Checkout:** Error state for API failures (e.g. cart empty, all items already owned).
+- **Library:** Listening (resume cards) / Owned (grid) / Wishlist (grid). All from API state.
+- **Profile:** Shows `app.user.name` / `app.user.email`; hours = sum of `app.progress` values.
+- **Settings:** `setPremium` calls `PATCH /users/me { is_premium }`. Sign out button clears token + state.
 - Adding a screen: add to `SCREENS` in `App.tsx`. No router config needed.
 
 ---
 
-## 8. CSS
+## 9. CSS
 
 All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
 
@@ -166,9 +202,13 @@ All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
 
 ---
 
-## 9. Pitfalls
+## 10. Pitfalls
 
 - **Theme mutation:** `T` mutated in `Shell` render — never cache `T.*` outside render.
 - **Player stays mounted when closed:** `closePlayer()` hides UI only; playback continues.
 - **`openPlayer` vs `openPlayerAt`:** Both open the player; `openPlayerAt` jumps to a chapter.
 - **BookCover in grid:** Omit `w`, use `style={{ width: '100%', aspectRatio: '1' }}`.
+- **Book lookup:** Always use `app.booksById[id]` — do not import `GE_BOOK_BY_ID` in components. The seed data in `bookdata.ts` is an AppContext-internal fallback only.
+- **Chapters:** `app.chaptersById[bookId]` may be empty until Detail or Player fetches them; the playback engine falls back to `GE_CHAPTERS` silently.
+- **`signIn` / `placeOrder` throw:** Both are async and reject with `ApiError` on failure. Catch in the calling component and display the error message.
+- **Auth loading:** `app.loading === true` while the JWT is being validated on startup. Shell renders a blank screen during this window — don't add loading spinners elsewhere.
