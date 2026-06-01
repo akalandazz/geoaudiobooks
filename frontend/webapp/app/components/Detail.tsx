@@ -6,23 +6,18 @@ import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { Btn, IconBtn, Stars, Screen } from './Atoms'
 import { Row } from './Chrome'
-import { GE_BOOKS, GE_BOOK_BY_ID, GE_CHAPTERS, fmt } from './bookdata'
+import { GE_CHAPTERS, fmt, Chapter, Book } from './bookdata'
 import { useApp } from './AppContext'
+import * as Api from '../lib/api'
 
-export function Detail() {
-  const app = useApp()
-  const b = GE_BOOK_BY_ID[app.bookId]
-  const [tab, setTab] = useState('Overview')
-  useEffect(() => { setTab('Overview') }, [app.bookId])
-  if (!b) return null
+interface BookMetaProps {
+  b: Book; chapters: Chapter[]; owned: boolean; inCart: boolean; mob: boolean;
+  onPlay: () => void; onBuy: () => void; onCart: () => void; onWishlist: () => void;
+  inWishlist: boolean; progress: number; onSample: () => void;
+}
 
-  const chapters = GE_CHAPTERS(b)
-  const owned = app.isOwned(b.id)
-  const inCart = app.inCart(b.id)
-  const similar = GE_BOOKS.filter(x => x.id !== b.id && (x.genre === b.genre || x.tags.some(t => b.tags.includes(t)))).slice(0, 6)
-  const mob = app.mobile
-
-  const Meta = () => (
+function BookMeta({ b, chapters, owned, inCart, mob, onPlay, onBuy, onCart, onWishlist, inWishlist, progress, onSample }: BookMetaProps) {
+  return (
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontFamily: T.body, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.accent2 }}>{b.genre}</div>
       <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: mob ? 30 : 44, letterSpacing: '-0.025em', lineHeight: 1.04, margin: '10px 0 8px', color: T.text }}>{b.title}</div>
@@ -35,21 +30,21 @@ export function Detail() {
       </div>
       <div style={{ display: 'flex', gap: 12, marginTop: 24, flexWrap: 'wrap', alignItems: 'center' }}>
         {owned ? (
-          <Btn kind="primary" size="lg" icon={<GEIcon.play s={17} />} onClick={() => app.openPlayer(b.id)}>
-            {app.progress[b.id] ? 'Continue' : 'Start listening'}
+          <Btn kind="primary" size="lg" icon={<GEIcon.play s={17} />} onClick={onPlay}>
+            {progress ? 'Continue' : 'Start listening'}
           </Btn>
         ) : (
           <>
-            <Btn kind="light" size="lg" onClick={() => app.buyNow(b.id)}>Buy now · ${b.price}</Btn>
-            <Btn kind="soft" size="lg" icon={<GEIcon.cart s={17} />} onClick={() => inCart ? app.nav('cart') : app.addToCart(b.id)}>
+            <Btn kind="light" size="lg" onClick={onBuy}>Buy now · ${b.price}</Btn>
+            <Btn kind="soft" size="lg" icon={<GEIcon.cart s={17} />} onClick={onCart}>
               {inCart ? 'In cart' : 'Add to cart'}
             </Btn>
           </>
         )}
-        <IconBtn size={48} onClick={() => app.toggleWishlist(b.id)} style={{ border: '1px solid ' + T.line2 }}>
-          {app.wishlist.includes(b.id) ? <GEIcon.heartFill s={20} style={{ color: T.accent2 }} /> : <GEIcon.heart s={20} />}
+        <IconBtn size={48} onClick={onWishlist} style={{ border: '1px solid ' + T.line2 }}>
+          {inWishlist ? <GEIcon.heartFill s={20} style={{ color: T.accent2 }} /> : <GEIcon.heart s={20} />}
         </IconBtn>
-        <Btn kind="ghost" size="lg" icon={<GEIcon.play s={15} />} onClick={() => app.openPlayer(b.id)}>Sample</Btn>
+        <Btn kind="ghost" size="lg" icon={<GEIcon.play s={15} />} onClick={onSample}>Sample</Btn>
       </div>
       {!owned && (
         <div style={{ marginTop: 14, fontSize: 13, color: T.dim, display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -58,6 +53,34 @@ export function Detail() {
       )}
     </div>
   )
+}
+
+export function Detail() {
+  const app = useApp()
+  const b = app.booksById[app.bookId]
+  const [tab, setTab] = useState('Overview')
+
+  useEffect(() => { setTab('Overview') }, [app.bookId])
+
+  // Fetch real chapters from API and cache them in AppContext
+  useEffect(() => {
+    if (!b || app.chaptersById[b.id]) return
+    Api.getChapters(b.id)
+      .then(chs => { app.setChapters(b.id, chs.map(Api.toChapter)) })
+      .catch(() => { /* keep GE_CHAPTERS fallback */ })
+  }, [app.bookId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!b) return null
+
+  // Chapters: use cached API data or fall back to generated
+  const chapters = app.chaptersById[b.id] || GE_CHAPTERS(b)
+
+  const owned = app.isOwned(b.id)
+  const inCart = app.inCart(b.id)
+  const similar = Object.values(app.booksById)
+    .filter(x => x.id !== b.id && (x.genre === b.genre || x.tags.some(t => b.tags.includes(t))))
+    .slice(0, 6)
+  const mob = app.mobile
 
   return (
     <Screen style={{ padding: mob ? '4px 0 12px' : '0' }}>
@@ -67,7 +90,16 @@ export function Detail() {
         </div>
         <div style={{ display: 'flex', flexDirection: mob ? 'column' : 'row', gap: mob ? 22 : 44, alignItems: mob ? 'center' : 'flex-start' }}>
           <BookCover book={b} w={mob ? 220 : 300} radius={16} style={{ boxShadow: '0 30px 70px rgba(0,0,0,0.55)', flexShrink: 0 }} />
-          <Meta />
+          <BookMeta
+            b={b} chapters={chapters} owned={owned} inCart={inCart} mob={mob}
+            onPlay={() => app.openPlayer(b.id)}
+            onBuy={() => app.buyNow(b.id)}
+            onCart={() => inCart ? app.nav('cart') : app.addToCart(b.id)}
+            onWishlist={() => app.toggleWishlist(b.id)}
+            inWishlist={app.wishlist.includes(b.id)}
+            progress={app.progress[b.id] || 0}
+            onSample={() => app.openPlayer(b.id)}
+          />
         </div>
 
         {/* tabs */}

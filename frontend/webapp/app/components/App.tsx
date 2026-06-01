@@ -23,6 +23,10 @@ const SCREENS: Record<string, React.ComponentType> = {
 function Shell() {
   const app = useApp()
 
+  if (app.loading) {
+    return <div style={{ position: 'relative', height: '100vh', background: T.bg }} />
+  }
+
   if (!app.authed) {
     return (
       <div style={{ position: 'relative', height: '100vh', background: T.bg }}>

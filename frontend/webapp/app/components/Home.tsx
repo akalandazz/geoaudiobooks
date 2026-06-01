@@ -6,18 +6,24 @@ import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { Btn, Screen } from './Atoms'
 import { Row } from './Chrome'
-import { GE_BOOKS, GE_BOOK_BY_ID } from './bookdata'
 import { useApp } from './AppContext'
 
 export function Home() {
   const app = useApp()
-  const feat = GE_BOOK_BY_ID['machine']
+  const books = Object.values(app.booksById)
   const cont = app.continueBooks
   const progMap: Record<string, number> = {}
   cont.forEach(b => { progMap[b.id] = app.progress[b.id] || 0 })
-  const trending = ['neon', 'ashfall', 'cobalt', 'vermillion', 'hollow', 'glass'].map(id => GE_BOOK_BY_ID[id])
-  const newest = GE_BOOKS.filter(b => b.year >= 2025).slice(0, 6)
+
+  // Featured: highest rated book
+  const feat = app.booksById['machine'] || books.sort((a, b) => b.rating - a.rating)[0]
+  // Trending: most reviewed
+  const trending = books.sort((a, b) => b.reviews - a.reviews).slice(0, 6)
+  // Newest: most recent year
+  const newest = [...books].sort((a, b) => b.year - a.year).filter(b => b.year >= 2025).slice(0, 6)
   const mob = app.mobile
+
+  if (!feat) return null
 
   return (
     <Screen style={{ padding: mob ? '4px 0 12px' : '24px 28px 12px' }}>
@@ -47,8 +53,8 @@ export function Home() {
         {cont.length > 0 && (
           <Row title="Continue listening" books={cont} progressMap={progMap} onShowAll={() => app.nav('library')} />
         )}
-        <Row title="New & trending" books={trending} onShowAll={() => app.nav('search')} />
-        <Row title="Fresh this year" books={newest} onShowAll={() => app.nav('search')} />
+        {trending.length > 0 && <Row title="New & trending" books={trending} onShowAll={() => app.nav('search')} />}
+        {newest.length > 0 && <Row title="Fresh this year" books={newest} onShowAll={() => app.nav('search')} />}
       </div>
     </Screen>
   )

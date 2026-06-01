@@ -6,7 +6,7 @@ import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { Btn, IconBtn, Screen } from './Atoms'
 import { BookCard } from './Chrome'
-import { GE_BOOK_BY_ID, fmtClock } from './bookdata'
+import { fmtClock } from './bookdata'
 import { useApp } from './AppContext'
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
@@ -37,33 +37,36 @@ function Seg({ opts, val, onChange }: { opts: string[]; val: string; onChange?: 
   )
 }
 
+const LIBRARY_EMPTY: Record<string, [string, string]> = {
+  Listening: ['Nothing in progress', "Start a book and it'll appear here."],
+  Owned: ['No audiobooks yet', 'Purchases land in your library instantly.'],
+  Wishlist: ['Your wishlist is empty', 'Tap the heart on any book to save it.'],
+}
+
+function LibraryEmpty({ t, onBrowse }: { t: string; onBrowse: () => void }) {
+  const [title, sub] = LIBRARY_EMPTY[t] || ['Empty', '']
+  return (
+    <div style={{ textAlign: 'center', padding: '70px 0', color: T.dim }}>
+      <GEIcon.library s={42} style={{ color: T.elev2, marginBottom: 14 }} />
+      <div style={{ fontFamily: T.disp, fontSize: 19, color: T.mut }}>{title}</div>
+      <div style={{ fontSize: 14, marginTop: 5, marginBottom: 20 }}>{sub}</div>
+      <Btn kind="primary" onClick={onBrowse}>Browse catalog</Btn>
+    </div>
+  )
+}
+
 // ── LIBRARY ──
 export function Library() {
   const app = useApp()
   const [tab, setTab] = useState('Listening')
   const mob = app.mobile
-  const owned = app.library.map(id => GE_BOOK_BY_ID[id]).filter(Boolean)
+  const owned = app.library.map(id => app.booksById[id]).filter(Boolean)
   const listening = app.continueBooks
-  const wish = app.wishlist.map(id => GE_BOOK_BY_ID[id]).filter(Boolean)
+  const wish = app.wishlist.map(id => app.booksById[id]).filter(Boolean)
   const tabs: [string, number][] = [['Listening', listening.length], ['Owned', owned.length], ['Wishlist', wish.length]]
   const show = tab === 'Listening' ? listening : tab === 'Owned' ? owned : wish
   const colW = mob ? 'repeat(auto-fill, minmax(140px, 1fr))' : 'repeat(auto-fill, minmax(168px, 1fr))'
-
-  const Empty = ({ t }: { t: string }) => {
-    const map: Record<string, [string, string]> = {
-      Listening: ['Nothing in progress', "Start a book and it'll appear here."],
-      Owned: ['No audiobooks yet', 'Purchases land in your library instantly.'],
-      Wishlist: ['Your wishlist is empty', 'Tap the heart on any book to save it.'],
-    }
-    return (
-      <div style={{ textAlign: 'center', padding: '70px 0', color: T.dim }}>
-        <GEIcon.library s={42} style={{ color: T.elev2, marginBottom: 14 }} />
-        <div style={{ fontFamily: T.disp, fontSize: 19, color: T.mut }}>{map[t][0]}</div>
-        <div style={{ fontSize: 14, marginTop: 5, marginBottom: 20 }}>{map[t][1]}</div>
-        <Btn kind="primary" onClick={() => app.nav('home')}>Browse catalog</Btn>
-      </div>
-    )
-  }
+  const onBrowse = () => app.nav('home')
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -89,7 +92,7 @@ export function Library() {
                   <BookCover book={b} w={mob ? 64 : 80} radius={9} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: mob ? 15 : 17, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
-                    <div style={{ fontSize: 13, color: T.mut, marginTop: 3 }}>{fmtClock(b.secs - app.progress[b.id])} left · {pct}%</div>
+                    <div style={{ fontSize: 13, color: T.mut, marginTop: 3 }}>{fmtClock(b.secs - (app.progress[b.id] || 0))} left · {pct}%</div>
                     <div style={{ marginTop: 10, height: 4, background: T.elev, borderRadius: 2, maxWidth: 320 }}>
                       <div style={{ width: pct + '%', height: '100%', background: T.accent2, borderRadius: 2 }} />
                     </div>
@@ -104,12 +107,12 @@ export function Library() {
         )}
         {tab !== 'Listening' && (
           show.length === 0
-            ? <Empty t={tab} />
+            ? <LibraryEmpty t={tab} onBrowse={onBrowse} />
             : <div style={{ display: 'grid', gridTemplateColumns: colW, gap: mob ? 18 : 24, rowGap: 28 }}>
                 {show.map(b => <BookCard key={b.id} b={b} w="100%" />)}
               </div>
         )}
-        {tab === 'Listening' && listening.length === 0 && <Empty t={tab} />}
+        {tab === 'Listening' && listening.length === 0 && <LibraryEmpty t={tab} onBrowse={onBrowse} />}
       </Screen>
     </div>
   )
@@ -119,18 +122,20 @@ export function Library() {
 export function Profile() {
   const app = useApp()
   const mob = app.mobile
-  const owned = app.library.map(id => GE_BOOK_BY_ID[id]).filter(Boolean)
-  const hoursListened = Math.round(owned.reduce((s, b) => s + b.secs, 0) / 3600 * 0.4)
+  const displayName = app.user?.name || 'Listener'
+  const displayEmail = app.user?.email || ''
+  const initial = displayName[0]?.toUpperCase() || '?'
+  const hoursListened = Math.round(Object.values(app.progress).reduce((s, p) => s + p, 0) / 3600)
   const stats: [string, number][] = [['Books', app.library.length], ['Hours', hoursListened], ['Day streak', 12], ['Reviews', 7]]
-  const history = owned.slice(0, 5)
+  const history = app.library.slice(0, 5).map(id => app.booksById[id]).filter(Boolean)
 
   return (
     <Screen style={{ padding: mob ? '4px 20px 20px' : '24px 40px 40px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: mob ? 16 : 24, marginBottom: 30, flexWrap: 'wrap' }}>
-        <div style={{ width: mob ? 72 : 92, height: mob ? 72 : 92, borderRadius: 99, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.disp, fontWeight: 700, fontSize: mob ? 28 : 36, color: '#fff' }}>J</div>
+        <div style={{ width: mob ? 72 : 92, height: mob ? 72 : 92, borderRadius: 99, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.disp, fontWeight: 700, fontSize: mob ? 28 : 36, color: '#fff' }}>{initial}</div>
         <div>
-          <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: mob ? 26 : 34, letterSpacing: '-0.02em', color: T.text }}>Jordan Avery</div>
-          <div style={{ fontSize: 14.5, color: T.mut, marginTop: 4 }}>jordan.avery@example.com</div>
+          <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: mob ? 26 : 34, letterSpacing: '-0.02em', color: T.text }}>{displayName}</div>
+          <div style={{ fontSize: 14.5, color: T.mut, marginTop: 4 }}>{displayEmail}</div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 10, background: app.premium ? T.accentDim : T.elev, color: app.premium ? T.accent2 : T.mut, padding: '5px 13px', borderRadius: 99, fontSize: 12.5, fontWeight: 700, fontFamily: T.disp }}>
             {app.premium ? '★ Premium member' : 'Free plan'}
           </div>
@@ -175,7 +180,7 @@ export function Settings() {
   const mob = app.mobile
   const [t1, setT1] = useState(true), [t2, setT2] = useState(false), [t3, setT3] = useState(true)
 
-  const Row = ({ label, desc, control }: { label: string; desc?: string; control: React.ReactNode }) => (
+  const SettingsRow = ({ label, desc, control }: { label: string; desc?: string; control: React.ReactNode }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 0', borderTop: '1px solid ' + T.line }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: T.body, fontWeight: 600, fontSize: 14.5, color: T.text }}>{label}</div>
@@ -214,18 +219,19 @@ export function Settings() {
           </div>
         </Group>
         <Group title="Playback">
-          <Row label="Default speed" desc="Applied to new books" control={<Seg opts={['1×', '1.25×', '1.5×', '2×']} val="1×" />} />
-          <Row label="Skip-back interval" control={<Seg opts={['10s', '15s', '30s']} val="15s" />} />
-          <Row label="Skip-forward interval" control={<Seg opts={['15s', '30s', '60s']} val="30s" />} />
-          <Row label="Auto-play next chapter" control={<Toggle on={t1} onClick={() => setT1(!t1)} />} />
+          <SettingsRow label="Default speed" desc="Applied to new books" control={<Seg opts={['1×', '1.25×', '1.5×', '2×']} val="1×" />} />
+          <SettingsRow label="Skip-back interval" control={<Seg opts={['10s', '15s', '30s']} val="15s" />} />
+          <SettingsRow label="Skip-forward interval" control={<Seg opts={['15s', '30s', '60s']} val="30s" />} />
+          <SettingsRow label="Auto-play next chapter" control={<Toggle on={t1} onClick={() => setT1(!t1)} />} />
         </Group>
         <Group title="Notifications">
-          <Row label="New releases from followed authors" control={<Toggle on={t3} onClick={() => setT3(!t3)} />} />
-          <Row label="Price drops on wishlist" control={<Toggle on={t2} onClick={() => setT2(!t2)} />} />
+          <SettingsRow label="New releases from followed authors" control={<Toggle on={t3} onClick={() => setT3(!t3)} />} />
+          <SettingsRow label="Price drops on wishlist" control={<Toggle on={t2} onClick={() => setT2(!t2)} />} />
         </Group>
         <Group title="Account">
-          <Row label="Email" desc="jordan.avery@example.com" control={<Btn kind="ghost" size="sm">Change</Btn>} />
-          <Row label="Password" desc="Last changed 3 months ago" control={<Btn kind="ghost" size="sm">Update</Btn>} />
+          <SettingsRow label="Email" desc={app.user?.email || ''} control={<Btn kind="ghost" size="sm">Change</Btn>} />
+          <SettingsRow label="Password" desc="Last changed 3 months ago" control={<Btn kind="ghost" size="sm">Update</Btn>} />
+          <SettingsRow label="Sign out" control={<Btn kind="ghost" size="sm" onClick={() => app.signOut()}>Sign out</Btn>} />
         </Group>
       </div>
     </Screen>

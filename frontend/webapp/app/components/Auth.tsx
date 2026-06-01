@@ -2,11 +2,11 @@
 
 import React, { useState } from 'react'
 import { T } from './theme'
-import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { Btn } from './Atoms'
 import { GE_BOOKS } from './bookdata'
 import { useApp } from './AppContext'
+import * as Api from '../lib/api'
 
 type AuthMode = 'signin' | 'signup' | 'forgot'
 
@@ -14,17 +14,64 @@ export function Auth() {
   const app = useApp()
   const mob = app.mobile
   const [mode, setMode] = useState<AuthMode>('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [forgotSent, setForgotSent] = useState(false)
 
-  const Input = ({ label, type = 'text', ph }: { label: string; type?: string; ph: string }) => (
-    <label style={{ display: 'block', marginBottom: 16 }}>
-      <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: T.mut, marginBottom: 7, fontFamily: T.body }}>{label}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: T.bg2, border: '1px solid ' + T.line2, borderRadius: 11, padding: '13px 15px' }}>
-        <input type={type} placeholder={ph} style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: T.text, fontFamily: T.body, fontSize: 14.5 }}
-          onFocus={e => (e.target.parentElement!.style.borderColor = T.accent)}
-          onBlur={e => (e.target.parentElement!.style.borderColor = T.line2)} />
-      </div>
-    </label>
-  )
+  const handleSubmit = async () => {
+    setError(null)
+    if (!email) { setError('Email is required'); return }
+    if (mode !== 'forgot' && !password) { setError('Password is required'); return }
+    if (mode === 'signup' && !name) { setError('Name is required'); return }
+    setBusy(true)
+    try {
+      if (mode === 'signin') {
+        await app.signIn(email, password)
+      } else if (mode === 'signup') {
+        await app.signUp(email, password, name)
+      } else {
+        await Api.forgotPassword(email)
+        setForgotSent(true)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onKey = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSubmit() }
+
+  const inputStyle: React.CSSProperties = {
+    flex: 1, background: 'transparent', border: 'none', outline: 'none',
+    color: T.text, fontFamily: T.body, fontSize: 14.5,
+  }
+  const wrapStyle = (focused?: boolean): React.CSSProperties => ({
+    display: 'flex', alignItems: 'center', gap: 10, background: T.bg2,
+    border: '1px solid ' + (focused ? T.accent : T.line2), borderRadius: 11, padding: '13px 15px',
+  })
+
+  const Field = ({ label, type = 'text', ph, value, onChange }: { label: string; type?: string; ph: string; value: string; onChange: (v: string) => void }) => {
+    const [focused, setFocused] = useState(false)
+    return (
+      <label style={{ display: 'block', marginBottom: 16 }}>
+        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: T.mut, marginBottom: 7, fontFamily: T.body }}>{label}</span>
+        <div style={wrapStyle(focused)}>
+          <input
+            type={type} placeholder={ph} value={value}
+            onChange={e => onChange(e.target.value)}
+            onKeyDown={onKey}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={inputStyle}
+          />
+        </div>
+      </label>
+    )
+  }
 
   const Social = ({ label, mark }: { label: string; mark: React.ReactNode }) => (
     <button style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: T.elev, border: '1px solid ' + T.line, borderRadius: 11, padding: '12px', cursor: 'pointer', color: T.text, fontFamily: T.disp, fontWeight: 700, fontSize: 14 }}>
@@ -34,6 +81,7 @@ export function Auth() {
 
   const title = mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : 'Reset password'
   const sub = mode === 'signin' ? 'Pick up right where you left off.' : mode === 'signup' ? 'Thousands of listens, one library.' : 'We\'ll email you a reset link.'
+  const btnLabel = mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'
 
   const Form = (
     <div style={{ width: '100%', maxWidth: 380 }}>
@@ -62,27 +110,37 @@ export function Auth() {
           </div>
         </>
       )}
-      {mode === 'signup' && <Input label="Name" ph="Jordan Avery" />}
-      <Input label="Email" ph="you@example.com" />
+      {mode === 'signup' && <Field label="Name" ph="Jordan Avery" value={name} onChange={setName} />}
+      <Field label="Email" ph="you@example.com" value={email} onChange={setEmail} />
       {mode !== 'forgot' && (
         <div>
-          <Input label="Password" type="password" ph="••••••••" />
+          <Field label="Password" type="password" ph="••••••••" value={password} onChange={setPassword} />
           {mode === 'signin' && (
             <div style={{ textAlign: 'right', marginTop: -8, marginBottom: 14 }}>
-              <span onClick={() => setMode('forgot')} style={{ fontSize: 13, fontWeight: 700, color: T.accent2, cursor: 'pointer' }}>Forgot password?</span>
+              <span onClick={() => { setMode('forgot'); setError(null); setForgotSent(false) }} style={{ fontSize: 13, fontWeight: 700, color: T.accent2, cursor: 'pointer' }}>Forgot password?</span>
             </div>
           )}
         </div>
       )}
+      {error && (
+        <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13.5, color: '#FCA5A5' }}>
+          {error}
+        </div>
+      )}
+      {forgotSent && mode === 'forgot' && (
+        <div style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13.5, color: T.good }}>
+          If that email exists, a reset link is on its way.
+        </div>
+      )}
       <div style={{ marginTop: 10 }}>
-        <Btn kind="primary" size="lg" full onClick={() => mode === 'forgot' ? setMode('signin') : app.signIn()}>
-          {mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'}
+        <Btn kind="primary" size="lg" full onClick={handleSubmit} disabled={busy}>
+          {busy ? 'Please wait…' : btnLabel}
         </Btn>
       </div>
       <div style={{ marginTop: 22, textAlign: 'center', fontSize: 14, color: T.mut }}>
-        {mode === 'signin' && <>New to geaudio? <span onClick={() => setMode('signup')} style={{ color: T.accent2, fontWeight: 700, cursor: 'pointer' }}>Create an account</span></>}
-        {mode === 'signup' && <>Already have an account? <span onClick={() => setMode('signin')} style={{ color: T.accent2, fontWeight: 700, cursor: 'pointer' }}>Sign in</span></>}
-        {mode === 'forgot' && <span onClick={() => setMode('signin')} style={{ color: T.accent2, fontWeight: 700, cursor: 'pointer' }}>← Back to sign in</span>}
+        {mode === 'signin' && <>New to geaudio? <span onClick={() => { setMode('signup'); setError(null) }} style={{ color: T.accent2, fontWeight: 700, cursor: 'pointer' }}>Create an account</span></>}
+        {mode === 'signup' && <>Already have an account? <span onClick={() => { setMode('signin'); setError(null) }} style={{ color: T.accent2, fontWeight: 700, cursor: 'pointer' }}>Sign in</span></>}
+        {mode === 'forgot' && <span onClick={() => { setMode('signin'); setError(null); setForgotSent(false) }} style={{ color: T.accent2, fontWeight: 700, cursor: 'pointer' }}>← Back to sign in</span>}
       </div>
     </div>
   )

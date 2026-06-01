@@ -5,7 +5,7 @@ import { T } from './theme'
 import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { Btn, Stars, Screen } from './Atoms'
-import { GE_BOOK_BY_ID, Book } from './bookdata'
+import { Book } from './bookdata'
 import { useApp } from './AppContext'
 
 const money = (n: number) => '$' + n.toFixed(2)
@@ -19,7 +19,7 @@ function OrderLine({ k, v, big, good, dim }: { k: string; v: string; big?: boole
   )
 }
 
-function OrderSummary({ items, premium, cta, onCta, note }: { items: Book[]; premium: boolean; cta: string; onCta: () => void; note?: string }) {
+function OrderSummary({ items, premium, cta, onCta, note, busy }: { items: Book[]; premium: boolean; cta: string; onCta: () => void; note?: string; busy?: boolean }) {
   const subtotal = items.reduce((s, b) => s + b.price, 0)
   const discount = premium ? subtotal * 0.3 : 0
   const total = subtotal - discount
@@ -31,7 +31,7 @@ function OrderSummary({ items, premium, cta, onCta, note }: { items: Book[]; pre
       <OrderLine k="Estimated tax" v={money(total * 0.08)} dim />
       <div style={{ height: 1, background: T.line, margin: '14px 0' }} />
       <OrderLine k="Total" v={money(total * 1.08)} big />
-      <div style={{ marginTop: 18 }}><Btn kind="primary" size="lg" full onClick={onCta}>{cta}</Btn></div>
+      <div style={{ marginTop: 18 }}><Btn kind="primary" size="lg" full onClick={onCta} disabled={busy}>{busy ? 'Processing…' : cta}</Btn></div>
       {note && <div style={{ marginTop: 14, fontSize: 12.5, color: T.dim, textAlign: 'center', lineHeight: 1.5 }}>{note}</div>}
     </div>
   )
@@ -49,7 +49,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 // ── CART ──
 export function Cart() {
   const app = useApp()
-  const items = app.cart.map(id => GE_BOOK_BY_ID[id]).filter(Boolean)
+  const items = app.cart.map(id => app.booksById[id]).filter(Boolean)
   const mob = app.mobile
 
   if (items.length === 0) {
@@ -104,9 +104,23 @@ export function Cart() {
 // ── CHECKOUT ──
 export function Checkout() {
   const app = useApp()
-  const items = app.cart.map(id => GE_BOOK_BY_ID[id]).filter(Boolean)
+  const items = app.cart.map(id => app.booksById[id]).filter(Boolean)
   const mob = app.mobile
   const [pay, setPay] = useState('card')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleOrder = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      await app.placeOrder()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Checkout failed. Please try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const Field = ({ label, ph, w, val }: { label: string; ph: string; w?: string; val?: string }) => (
     <label style={{ display: 'block', flex: w || '1 1 100%' }}>
@@ -149,8 +163,13 @@ export function Checkout() {
             </Section>
           )}
           <Section title="Billing email">
-            <Field label="Email" ph="you@example.com" val="jordan.avery@example.com" />
+            <Field label="Email" ph="you@example.com" val={app.user?.email || ''} />
           </Section>
+          {error && (
+            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '11px 16px', fontSize: 14, color: '#FCA5A5' }}>
+              {error}
+            </div>
+          )}
         </div>
         <div style={{ width: mob ? '100%' : 360, flexShrink: 0 }}>
           <div style={{ background: T.surface, border: '1px solid ' + T.line, borderRadius: 16, padding: 20, marginBottom: 16 }}>
@@ -166,7 +185,7 @@ export function Checkout() {
               </div>
             ))}
           </div>
-          <OrderSummary items={items} premium={app.premium} cta="Place order" onCta={() => app.placeOrder()} note="By placing this order you agree to the Terms. Files are yours to keep forever." />
+          <OrderSummary items={items} premium={app.premium} cta="Place order" onCta={handleOrder} busy={busy} note="By placing this order you agree to the Terms. Files are yours to keep forever." />
         </div>
       </div>
     </Screen>
@@ -176,7 +195,7 @@ export function Checkout() {
 // ── CONFIRM ──
 export function Confirm() {
   const app = useApp()
-  const items = app.lastOrder.map(id => GE_BOOK_BY_ID[id]).filter(Boolean)
+  const items = app.lastOrder.map(id => app.booksById[id]).filter(Boolean)
   const mob = app.mobile
   return (
     <Screen style={{ padding: mob ? '20px' : '40px' }}>

@@ -6,7 +6,7 @@ import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { IconBtn } from './Atoms'
 import { GE_BOOK_BY_ID, GE_CHAPTERS, fmt } from './bookdata'
-import { useApp, Bookmark } from './AppContext'
+import { useApp } from './AppContext'
 
 // ── Waveform ──
 interface WaveformProps { pct: number; count: number; onSeek: (pct: number) => void; height?: number }
@@ -109,8 +109,8 @@ export function SleepControl({ size = 44, dir = 'up', iconSize }: { size?: numbe
 export function BookmarksList({ bookId }: { bookId: string }) {
   const app = useApp()
   const list = app.bookmarks.filter(bm => bm.bookId === bookId).sort((a, b) => a.pos - b.pos)
-  const b = GE_BOOK_BY_ID[bookId]
-  const chs = b ? GE_CHAPTERS(b) : []
+  const b = app.booksById[bookId] || GE_BOOK_BY_ID[bookId]
+  const chs = b ? (app.chaptersById[bookId] || GE_CHAPTERS(b)) : []
   if (list.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '40px 20px', color: T.dim }}>
@@ -169,15 +169,15 @@ function SpeedMenu({ speeds, value, onPick }: { speeds: number[]; value: number;
 // ── PlayerDesktop ──
 export function PlayerDesktop() {
   const app = useApp()
-  const np = app.nowPlaying
-  if (!np) return null
-  const b = GE_BOOK_BY_ID[np.bookId]
-  if (!b) return null
-  const chapters = GE_CHAPTERS(b)
-  const pct = (np.pos / b.secs) * 100
-  const speeds = [0.8, 1, 1.25, 1.5, 1.75, 2]
   const [panel, setPanel] = useState<'Chapters' | 'Bookmarks'>('Chapters')
   const [flash, showFlash] = useFlash()
+  const np = app.nowPlaying
+  if (!np) return null
+  const b = app.booksById[np.bookId] || GE_BOOK_BY_ID[np.bookId]
+  if (!b) return null
+  const chapters = app.chaptersById[np.bookId] || GE_CHAPTERS(b)
+  const pct = (np.pos / b.secs) * 100
+  const speeds = [0.8, 1, 1.25, 1.5, 1.75, 2]
   const bmCount = app.bookmarks.filter(x => x.bookId === np.bookId).length
   return (
     <div style={{
@@ -212,7 +212,6 @@ export function PlayerDesktop() {
         {/* right: chapters / bookmarks panel */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12 }}>
-            {/* tab toggle */}
             <div style={{ display: 'flex', gap: 4, background: T.surface, borderRadius: 11, padding: 4 }}>
               {(['Chapters', 'Bookmarks'] as const).map(t => (
                 <button key={t} onClick={() => setPanel(t)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 15px', borderRadius: 8, border: 'none', cursor: 'pointer', background: panel === t ? T.elev2 : 'transparent', color: panel === t ? T.text : T.mut, fontFamily: T.disp, fontWeight: 700, fontSize: 14 }}>
@@ -221,7 +220,6 @@ export function PlayerDesktop() {
                 </button>
               ))}
             </div>
-            {/* bookmark button */}
             <button
               onClick={() => { app.addBookmark(); showFlash('Bookmarked'); setPanel('Bookmarks') }}
               title="Bookmark current position"
@@ -287,8 +285,8 @@ export function PlayerDesktop() {
 function MobileSheet({ bookId, tab, setTab, onClose }: { bookId: string; tab: 'chapters' | 'bookmarks'; setTab: (t: 'chapters' | 'bookmarks') => void; onClose: () => void }) {
   const app = useApp()
   const np = app.nowPlaying
-  const b = GE_BOOK_BY_ID[bookId]
-  const chapters = b ? GE_CHAPTERS(b) : []
+  const b = app.booksById[bookId] || GE_BOOK_BY_ID[bookId]
+  const chapters = b ? (app.chaptersById[bookId] || GE_CHAPTERS(b)) : []
   const bmCount = app.bookmarks.filter(x => x.bookId === bookId).length
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 70, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
@@ -339,16 +337,16 @@ function MobileSheet({ bookId, tab, setTab, onClose }: { bookId: string; tab: 'c
 // ── PlayerMobile ──
 export function PlayerMobile() {
   const app = useApp()
+  const [sheet, setSheet] = useState<'chapters' | 'bookmarks' | null>(null)
+  const [flash, showFlash] = useFlash()
   const np = app.nowPlaying
   if (!np) return null
-  const b = GE_BOOK_BY_ID[np.bookId]
+  const b = app.booksById[np.bookId] || GE_BOOK_BY_ID[np.bookId]
   if (!b) return null
-  const chapters = GE_CHAPTERS(b)
+  const chapters = app.chaptersById[np.bookId] || GE_CHAPTERS(b)
   const pct = (np.pos / b.secs) * 100
   const ch = chapters[np.chapter] || chapters[0]
   const coverW = Math.min(330, app.w - 60)
-  const [sheet, setSheet] = useState<'chapters' | 'bookmarks' | null>(null)
-  const [flash, showFlash] = useFlash()
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 50, fontFamily: T.body, color: T.text, overflow: 'hidden', display: 'flex', flexDirection: 'column',
@@ -369,7 +367,7 @@ export function PlayerMobile() {
         <div style={{ marginTop: 30, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 26, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{b.title}</div>
-            <div style={{ fontSize: 14, color: T.mut, marginTop: 5 }}>{ch.title} · {b.narrator}</div>
+            <div style={{ fontSize: 14, color: T.mut, marginTop: 5 }}>{ch?.title} · {b.narrator}</div>
           </div>
         </div>
         <div style={{ marginTop: 24 }}>
