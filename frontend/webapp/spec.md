@@ -212,3 +212,4 @@ All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
 - **Chapters:** `app.chaptersById[bookId]` may be empty until Detail or Player fetches them; the playback engine falls back to `GE_CHAPTERS` silently.
 - **`signIn` / `placeOrder` throw:** Both are async and reject with `ApiError` on failure. Catch in the calling component and display the error message.
 - **Auth loading:** `app.loading === true` while the JWT is being validated on startup. Shell renders a blank screen during this window — don't add loading spinners elsewhere.
+- **No components defined inside components:** Defining a component inside another component's function body gives it a new reference on every render. React treats it as a different type, unmounts the old node, and mounts a fresh one — inputs lose focus after each keystroke. Always define helper components at module scope.

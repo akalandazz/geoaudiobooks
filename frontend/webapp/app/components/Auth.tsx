@@ -10,6 +10,37 @@ import * as Api from '../lib/api'
 
 type AuthMode = 'signin' | 'signup' | 'forgot'
 
+const inputStyle: React.CSSProperties = {
+  flex: 1, background: 'transparent', border: 'none', outline: 'none',
+  color: T.text, fontFamily: T.body, fontSize: 14.5,
+}
+
+function Field({ label, type = 'text', ph, value, onChange, onKeyDown }: {
+  label: string; type?: string; ph: string; value: string
+  onChange: (v: string) => void; onKeyDown: (e: React.KeyboardEvent) => void
+}) {
+  const [focused, setFocused] = useState(false)
+  const wrapStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 10, background: T.bg2,
+    border: '1px solid ' + (focused ? T.accent : T.line2), borderRadius: 11, padding: '13px 15px',
+  }
+  return (
+    <label style={{ display: 'block', marginBottom: 16 }}>
+      <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: T.mut, marginBottom: 7, fontFamily: T.body }}>{label}</span>
+      <div style={wrapStyle}>
+        <input
+          type={type} placeholder={ph} value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={inputStyle}
+        />
+      </div>
+    </label>
+  )
+}
+
 export function Auth() {
   const app = useApp()
   const mob = app.mobile
@@ -44,34 +75,6 @@ export function Auth() {
   }
 
   const onKey = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSubmit() }
-
-  const inputStyle: React.CSSProperties = {
-    flex: 1, background: 'transparent', border: 'none', outline: 'none',
-    color: T.text, fontFamily: T.body, fontSize: 14.5,
-  }
-  const wrapStyle = (focused?: boolean): React.CSSProperties => ({
-    display: 'flex', alignItems: 'center', gap: 10, background: T.bg2,
-    border: '1px solid ' + (focused ? T.accent : T.line2), borderRadius: 11, padding: '13px 15px',
-  })
-
-  const Field = ({ label, type = 'text', ph, value, onChange }: { label: string; type?: string; ph: string; value: string; onChange: (v: string) => void }) => {
-    const [focused, setFocused] = useState(false)
-    return (
-      <label style={{ display: 'block', marginBottom: 16 }}>
-        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: T.mut, marginBottom: 7, fontFamily: T.body }}>{label}</span>
-        <div style={wrapStyle(focused)}>
-          <input
-            type={type} placeholder={ph} value={value}
-            onChange={e => onChange(e.target.value)}
-            onKeyDown={onKey}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            style={inputStyle}
-          />
-        </div>
-      </label>
-    )
-  }
 
   const Social = ({ label, mark }: { label: string; mark: React.ReactNode }) => (
     <button style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: T.elev, border: '1px solid ' + T.line, borderRadius: 11, padding: '12px', cursor: 'pointer', color: T.text, fontFamily: T.disp, fontWeight: 700, fontSize: 14 }}>
@@ -110,11 +113,11 @@ export function Auth() {
           </div>
         </>
       )}
-      {mode === 'signup' && <Field label="Name" ph="Jordan Avery" value={name} onChange={setName} />}
-      <Field label="Email" ph="you@example.com" value={email} onChange={setEmail} />
+      {mode === 'signup' && <Field label="Name" ph="Jordan Avery" value={name} onChange={setName} onKeyDown={onKey} />}
+      <Field label="Email" ph="you@example.com" value={email} onChange={setEmail} onKeyDown={onKey} />
       {mode !== 'forgot' && (
         <div>
-          <Field label="Password" type="password" ph="••••••••" value={password} onChange={setPassword} />
+          <Field label="Password" type="password" ph="••••••••" value={password} onChange={setPassword} onKeyDown={onKey} />
           {mode === 'signin' && (
             <div style={{ textAlign: 'right', marginTop: -8, marginBottom: 14 }}>
               <span onClick={() => { setMode('forgot'); setError(null); setForgotSent(false) }} style={{ fontSize: 13, fontWeight: 700, color: T.accent2, cursor: 'pointer' }}>Forgot password?</span>
