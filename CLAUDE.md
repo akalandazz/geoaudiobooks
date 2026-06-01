@@ -4,7 +4,7 @@
 
 Monorepo:
 - `frontend/webapp/` — Next.js 16, TypeScript, Tailwind v4, React 19
-- Python backend — not yet scaffolded; confirm framework before creating any backend code
+- Python backend — FastAPI + PostgreSQL + SQLAlchemy + Alembic; full spec: `backend/spec.md`
 
 ## Frontend Commands
 
