@@ -5,7 +5,7 @@ CLI tool for managing audiobooks on GeoAudiobooks — adds books to the database
 ## Install
 
 ```powershell
-cd audiomanager
+cd booksmanager
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e .
@@ -16,20 +16,20 @@ Reads `backend/.env` automatically. No extra config needed for local dev.
 ## Commands
 
 ```
-booksmanager add <book.yaml>          Add a book and upload its audio files
-booksmanager add <book.yaml> --dry-run  Validate and preview without writing
-booksmanager list                     List all books with audio status
-booksmanager list --missing-audio     Only books with missing audio
-booksmanager show <id>                Book details and per-chapter audio status
-booksmanager upload <id> --dir <dir>  Bulk re-upload MP3s for a book
-booksmanager upload <id> --file <f> --chapter <n>  Upload a single chapter
-booksmanager delete <id>              Delete a book (prompts for confirmation)
+booksmanager add <book.yaml>                              Add a book and upload its audio
+booksmanager add <book.yaml> --dry-run                    Validate and preview without writing
+booksmanager list                                         List all books with audio status
+booksmanager list --missing-audio                         Only books with missing audio
+booksmanager show <id>                                    Book details and per-chapter audio status
+booksmanager upload <id> --dir <dir>                      Bulk re-upload MP3s for a book
+booksmanager upload <id> --file <f> --chapter <n>         Upload a single chapter
+booksmanager delete <id>                                  Delete a book (prompts for confirmation)
 ```
 
 ## Book YAML format
 
 ```yaml
-id: "my-book"           # slug, becomes the MinIO prefix (e.g. my-book/000.mp3)
+id: "my-book"           # slug, used as MinIO prefix (e.g. my-book/000.mp3)
 title: "My Book Title"
 author: "Author Name"
 narrator: "Narrator Name"
@@ -54,4 +54,4 @@ chapters:
 
 ## Audio storage
 
-Files are stored in MinIO bucket `audiobooks` under the key `{book-id}/{idx:03d}.mp3` (e.g. `my-book/000.mp3`). The backend streams audio via pre-signed URLs — files never flow through FastAPI.
+Files are stored in MinIO bucket `audiobooks` under `{book-id}/{idx:03d}.mp3` (e.g. `my-book/000.mp3`). The backend streams audio via pre-signed URLs.

@@ -17,8 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-booksmanager = "booksmanager.main:app"
+booksmanager = "bm:app"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["booksmanager*"]
+[tool.setuptools]
+py-modules = ["bm"]
