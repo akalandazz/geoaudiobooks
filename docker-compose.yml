@@ -53,6 +53,25 @@ services:
     depends_on:
       - backend
 
+  booksmanager:
+    build: ./booksmanager
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/geoaudiobooks
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: audiobooks
+    depends_on:
+      - db
+      - minio
+    volumes:
+      - ./:/workspace
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    profiles:
+      - tools
+
 volumes:
   pgdata:
   miniodata:

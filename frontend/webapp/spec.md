@@ -43,7 +43,8 @@ interface Book {
   palette: [string, string, string]  // [darkest, mid, accent]
   motif: 'lines' | 'wave' | 'grid' | 'soft'; year: number; tags: string[]; blurb: string
 }
-interface Chapter { i: number; title: string; len: number; start: number }
+interface Chapter { i: number; title: string; len: number; start: number; dbId?: number }
+// dbId is the chapter's DB primary key — present when loaded from API, absent on GE_CHAPTERS fallback
 ```
 
 `GE_BOOK_BY_ID` and `GE_CHAPTERS(book)` are **fallbacks only** — real data comes from the API. Components read `app.booksById` / `app.chaptersById` and fall back to these when the API hasn't loaded yet.  
@@ -56,11 +57,11 @@ interface Chapter { i: number; title: string; len: number; start: number }
 Typed fetch wrapper around the FastAPI backend (`NEXT_PUBLIC_API_URL`, default `http://localhost:8000`).
 
 - `setToken(t)` / `getToken()` — module-level JWT storage (called by AppContext after sign-in)
-- `toBook(BookOut)` → `Book` · `toChapter(ChapterOut)` → `Chapter` · `toBookmark(BookmarkOut)` → `Bookmark`
+- `toBook(BookOut)` → `Book` · `toChapter(ChapterOut)` → `Chapter` (includes `dbId`) · `toBookmark(BookmarkOut)` → `Bookmark`
 - `ApiError` — thrown on non-2xx; has `.status: number`
-- `ChapterOut` includes `audio_key: string | null` — null until an MP3 is uploaded to MinIO for that chapter
-- `ChapterAudioResponse` — `{ url: string; expires_in: number }` — pre-signed MinIO URL, valid for 1 hour
-- One exported function per endpoint: `signIn`, `signUp`, `getMe`, `updateMe`, `getBooks`, `getChapters`, `getChapterAudio(bookId, chapterId)`, `getCart`, `addToCart`, `removeFromCart`, `checkout`, `getLibrary`, `getProgress`, `updateProgress`, `getBookmarks`, `addBookmark`, `deleteBookmark`, `getWishlist`, `addToWishlist`, `removeFromWishlist`
+- `ChapterOut` includes `audio_key: string | null` — null until audio uploaded; `.mp3` for MP3, `.m3u8` path for HLS
+- `getChapterHLS(bookId, chapterId)` — fetches the HLS playlist and **rewrites relative segment filenames to absolute backend proxy URLs** (`/books/{id}/chapters/{id}/hls/{file}`) before returning the M3U8 text; `chapterId` is the chapter DB primary key (`dbId`)
+- One exported function per endpoint: `signIn`, `signUp`, `getMe`, `updateMe`, `getBooks`, `getChapters`, `getChapterAudio(bookId, chapterId)`, `getChapterHLS(bookId, chapterId)`, `getCart`, `addToCart`, `removeFromCart`, `checkout`, `getLibrary`, `getProgress`, `updateProgress`, `getBookmarks`, `addBookmark`, `deleteBookmark`, `getWishlist`, `addToWishlist`, `removeFromWishlist`
 
 ---
 
@@ -119,7 +120,13 @@ interface Sleep      { mode: 'time'|'chapter'; minutes?: number; remaining: numb
 
 **Persistence (`localStorage 'geaudio.state.v1'`):** Only `nowPlaying` (with `playing:false`) and `progress`. Cart/library/wishlist/bookmarks are backend-authoritative. JWT stored separately under `'geaudio.token'`.
 
-**Playback engine:** 1s interval when `np.playing`. Advances `pos` by `speed`, updates chapter index, uses `booksById`/`chaptersById` with `GE_*` fallbacks. **Progress sync:** every 10s while playing, `PUT /progress/{bookId}` fires via `setInterval` reading state through refs. **Real audio:** wire `getChapterAudio(bookId, chapterId)` → pre-signed URL → `<audio>` element; fall back to simulation if the chapter has no `audio_key`.
+**Playback engine (`app/lib/audioEngine.ts`):** Singleton `AudioEngineImpl` wraps a single `<Audio>` element + hls.js instance. `getAudioEngine()` returns the singleton (SSR-safe stub on server). Interface: `load(m3u8Text, startSecs)`, `play()`, `pause()`, `seek(sec)`, `setRate(rate)`, `onTimeUpdate` / `onEnded` callbacks. Uses hls.js when `Hls.isSupported()` (Chrome/Firefox/desktop Safari); for other browsers, logs a warning — native HLS via blob URL does not work for M3U8.
+
+**HLS load effect:** Fires when `np.bookId`, `np.chapter`, `isCurrentBookOwned` (= `authed && library.includes(np.bookId)`), or `currentChapterDbId` change. Skips if book not owned or chapters not yet loaded (no `dbId`). Calls `getChapterHLS` → `engine.load(m3u8Text)` → `engine.play()` if `np.playing`. Sets `hlsActiveRef.current = true` on success, `false` on failure (error logged to console).
+
+**Simulated position timer:** 1s interval fallback when `hlsActiveRef.current = false` (preview / HLS unavailable). Advances `pos` by `speed`, updates chapter index. **Does not play real audio.**
+
+**Progress sync:** every 10s while playing, `PUT /progress/{bookId}` fires via `setInterval` reading state through refs.
 
 **`continueBooks`** — library books with `progress > 0`, sorted by % complete.
 
@@ -238,3 +245,7 @@ All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
 - **`signIn` / `placeOrder` throw:** Both are async and reject with `ApiError` on failure. Catch in the calling component and display the error message.
 - **Auth loading:** `app.loading === true` while the JWT is being validated on startup. Shell renders a blank screen during this window — don't add loading spinners elsewhere.
 - **No components defined inside components:** Defining a component inside another component's function body gives it a new reference on every render. React treats it as a different type, unmounts the old node, and mounts a fresh one — inputs lose focus after each keystroke. Always define helper components at module scope.
+- **Frontend has no hot-reload volume mount** — unlike the backend, source changes require `docker compose build frontend && docker compose up -d frontend`. Failing to rebuild after adding packages (e.g. `hls.js`) means the module is silently absent and audio falls back to simulation.
+- **`NEXT_PUBLIC_API_URL` is baked at build time** — the runtime env var in docker-compose is ignored for client bundles. The fallback `http://localhost:8000` works for local dev. For other environments, pass it as a Docker `ARG` during the build stage.
+- **HLS audio requires chapters loaded from API** — `currentChapterDbId` (needed to call the HLS endpoint) is only present on chapters fetched via `GET /books/{id}/chapters`. `GE_CHAPTERS` fallback chapters have no `dbId`; the HLS load effect skips them.
+- **Segment URLs are proxied through the backend** — `getChapterHLS` rewrites relative `.ts` filenames in the playlist to absolute `http://backend/books/{id}/chapters/{id}/hls/{file}` URLs. hls.js then fetches segments via XHR with the `Authorization` header injected by `xhrSetup`. Never point hls.js directly at MinIO.

@@ -1,0 +1,27 @@
+id: salt
+title: "Salt: A World History"
+author: Mark Kurlansky
+narrator: Scott Brick
+genre: History
+year: 2002
+price: 14.99
+rating_avg: 4.4
+reviews_count: 0
+blurb: >
+  An acclaimed history of the mineral that shaped civilizations, sparked wars,
+  and defined empires — from ancient salt routes to modern industry.
+tags:
+  - history
+  - geography
+  - food
+  - non-fiction
+palette:
+  - "#C4A882"
+  - "#8B6B45"
+  - "#2C1810"
+motif: wave
+
+chapters:
+  - title: "Introduction"
+    length_secs: 73
+    hls_dir: media

@@ -23,6 +23,7 @@ export interface Chapter {
   title: string;
   len: number;
   start: number;
+  dbId?: number;
 }
 
 export const GE_BOOKS: Book[] = [
