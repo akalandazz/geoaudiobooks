@@ -115,6 +115,22 @@ def _upload(audio_key: str, file_path: str):
 def _audio_key(book_id: str, idx: int) -> str:
     return f"{book_id}/{idx:03d}.mp3"
 
+def _upload_hls(book_id: str, chapter_idx: int, hls_dir: Path) -> tuple[str, list[str]]:
+    """Upload HLS playlist + segments. Returns (playlist_key, segment_names)."""
+    s3 = _s3()
+    playlist = hls_dir / "playlist.m3u8"
+    if not playlist.exists():
+        raise FileNotFoundError(f"playlist.m3u8 not found in {hls_dir}")
+    playlist_key = f"{book_id}/{chapter_idx:03d}/playlist.m3u8"
+    s3.upload_file(str(playlist), MINIO_BUCKET, playlist_key,
+                   ExtraArgs={"ContentType": "application/vnd.apple.mpegurl"})
+    segments = []
+    for seg in sorted(hls_dir.glob("*.ts")):
+        seg_key = f"{book_id}/{chapter_idx:03d}/{seg.name}"
+        s3.upload_file(str(seg), MINIO_BUCKET, seg_key, ExtraArgs={"ContentType": "video/mp2t"})
+        segments.append(seg.name)
+    return playlist_key, segments
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _hms(secs: int) -> str:
@@ -163,7 +179,8 @@ def add(
             "idx": i, "title": ch["title"],
             "length_secs": length, "start_secs": acc,
             "audio_key": _audio_key(data["id"], i),
-            "audio_file": (yaml_dir / ch["audio_file"]).resolve(),
+            "audio_file": (yaml_dir / ch["audio_file"]).resolve() if "audio_file" in ch else None,
+            "hls_dir":    (yaml_dir / ch["hls_dir"]).resolve()    if "hls_dir"    in ch else None,
         })
         acc += length
 
@@ -200,19 +217,35 @@ def add(
         console.print("[yellow]Run 'booksmanager upload' to upload audio later.[/yellow]")
         raise typer.Exit(1)
 
-    uploaded, failures = 0, []
-    for ch in chapters:
-        try:
-            _upload(ch["audio_key"], str(ch["audio_file"]))
-            console.print(f"  [dim]↑[/dim] Chapter {ch['idx']}: {ch['audio_file'].name} → {ch['audio_key']}")
-            uploaded += 1
-        except Exception as e:
-            failures.append(ch["idx"])
-            console.print(f"  [red]✗[/red] Chapter {ch['idx']}: {e}", highlight=False)
+    to_upload = [ch for ch in chapters if ch["audio_file"] is not None or ch["hls_dir"] is not None]
+    if not to_upload:
+        console.print(f"\n[green]Added: {data['title']} — {len(chapters)} chapter(s), no audio files provided.[/green]")
+        console.print("[yellow]Use 'booksmanager upload' to add audio later.[/yellow]")
+        return
 
-    n = len(chapters)
+    uploaded, failures = 0, []
+    with session() as db:
+        for ch in to_upload:
+            try:
+                if ch["hls_dir"] is not None:
+                    playlist_key, segs = _upload_hls(data["id"], ch["idx"], ch["hls_dir"])
+                    row = db.query(Chapter).filter(
+                        Chapter.book_id == data["id"], Chapter.idx == ch["idx"]
+                    ).first()
+                    if row: row.audio_key = playlist_key
+                    console.print(f"  [dim]↑[/dim] Chapter {ch['idx']}: HLS ({len(segs)} segments) → {playlist_key}")
+                else:
+                    _upload(ch["audio_key"], str(ch["audio_file"]))
+                    console.print(f"  [dim]↑[/dim] Chapter {ch['idx']}: {ch['audio_file'].name} → {ch['audio_key']}")
+                uploaded += 1
+            except Exception as e:
+                failures.append(ch["idx"])
+                console.print(f"  [red]✗[/red] Chapter {ch['idx']}: {e}", highlight=False)
+        db.commit()
+
+    n = len(to_upload)
     style = "yellow" if failures else "green"
-    console.print(f"\n[{style}]Added: {data['title']} — {n} chapters, {uploaded}/{n} audio uploaded.[/{style}]")
+    console.print(f"\n[{style}]Added: {data['title']} — {len(chapters)} chapters, {uploaded}/{n} audio uploaded.[/{style}]")
     if failures:
         console.print("[yellow]Run 'booksmanager upload' to retry.[/yellow]")
         raise typer.Exit(1)
@@ -309,19 +342,21 @@ def show(book_id: str = typer.Argument(..., help="Book slug ID")):
 
 @app.command()
 def upload(
-    book_id: str           = typer.Argument(..., help="Book slug ID"),
-    dir:     Optional[Path] = typer.Option(None, "--dir",     help="Directory of MP3 files (000.mp3, 001.mp3, ...)"),
-    file:    Optional[Path] = typer.Option(None, "--file",    help="Single MP3 file"),
-    chapter: Optional[int]  = typer.Option(None, "--chapter", help="Chapter index (required with --file)"),
-    dry_run: bool           = typer.Option(False, "--dry-run", help="Preview without uploading"),
+    book_id:  str            = typer.Argument(..., help="Book slug ID"),
+    dir:      Optional[Path] = typer.Option(None, "--dir",     help="Directory of MP3 files (000.mp3, 001.mp3, ...)"),
+    file:     Optional[Path] = typer.Option(None, "--file",    help="Single MP3 file"),
+    hls_dir:  Optional[Path] = typer.Option(None, "--hls-dir", help="Directory of HLS files (playlist.m3u8 + *.ts)"),
+    chapter:  Optional[int]  = typer.Option(None, "--chapter", help="Chapter index (required with --file or --hls-dir)"),
+    dry_run:  bool           = typer.Option(False, "--dry-run", help="Preview without uploading"),
 ):
     """Upload or re-upload audio files for an existing book."""
-    if dir is None and file is None:
-        typer.echo("Error: provide --dir or --file.", err=True); raise typer.Exit(1)
-    if dir is not None and file is not None:
-        typer.echo("Error: --dir and --file are mutually exclusive.", err=True); raise typer.Exit(1)
-    if file is not None and chapter is None:
-        typer.echo("Error: --file requires --chapter.", err=True); raise typer.Exit(1)
+    modes = sum(x is not None for x in [dir, file, hls_dir])
+    if modes == 0:
+        typer.echo("Error: provide --dir, --file, or --hls-dir.", err=True); raise typer.Exit(1)
+    if modes > 1:
+        typer.echo("Error: --dir, --file, and --hls-dir are mutually exclusive.", err=True); raise typer.Exit(1)
+    if (file is not None or hls_dir is not None) and chapter is None:
+        typer.echo("Error: --file and --hls-dir require --chapter.", err=True); raise typer.Exit(1)
 
     with session() as db:
         book = db.query(Book).filter(Book.id == book_id).first()
@@ -329,7 +364,35 @@ def upload(
             typer.echo(f"Error: book '{book_id}' not found.", err=True); raise typer.Exit(1)
         chs = [{"id": c.id, "idx": c.idx} for c in sorted(book.chapters, key=lambda c: c.idx)]
 
-    if dir is not None:
+    if hls_dir is not None:
+        if not hls_dir.is_dir():
+            typer.echo(f"Error: not a directory: {hls_dir}", err=True); raise typer.Exit(1)
+        ch_row = next((c for c in chs if c["idx"] == chapter), None)
+        if ch_row is None:
+            typer.echo(f"Error: chapter {chapter} not found. Valid: {', '.join(str(c['idx']) for c in chs)}", err=True)
+            raise typer.Exit(1)
+        playlist_key = f"{book_id}/{chapter:03d}/playlist.m3u8"
+        segments = sorted(s.name for s in hls_dir.glob("*.ts"))
+        if dry_run:
+            console.print(f"[bold]DRY RUN:[/bold] Chapter {chapter} HLS: {hls_dir}")
+            console.print(f"  playlist.m3u8 → {playlist_key}")
+            for s in segments: console.print(f"  {s} → {book_id}/{chapter:03d}/{s}")
+            return
+        _ensure_bucket()
+        try:
+            key, segs = _upload_hls(book_id, chapter, hls_dir)
+            with session() as db:
+                row = db.query(Chapter).filter(Chapter.id == ch_row["id"]).first()
+                if row: row.audio_key = key
+                db.commit()
+            console.print(f"  [green]↑[/green] Chapter {chapter}: playlist.m3u8 + {len(segs)} segment(s) → {key}")
+            console.print(f"\n[green]1/1 HLS chapter uploaded.[/green]")
+        except Exception as e:
+            console.print(f"  [red]✗[/red] Chapter {chapter}: {e}", highlight=False)
+            raise typer.Exit(1)
+        return
+
+    elif dir is not None:
         if not dir.is_dir():
             typer.echo(f"Error: not a directory: {dir}", err=True); raise typer.Exit(1)
 
@@ -448,12 +511,17 @@ def _validate_yaml(data: dict, yaml_dir: Path) -> list[str]:
                 if "title"      not in ch:   errors.append(f"Chapter {i}: missing 'title'")
                 if "length_secs" not in ch:  errors.append(f"Chapter {i}: missing 'length_secs'")
                 elif int(ch["length_secs"]) <= 0: errors.append(f"Chapter {i}: 'length_secs' must be > 0")
-                if "audio_file" not in ch:   errors.append(f"Chapter {i}: missing 'audio_file'")
-                else:
+                if "audio_file" in ch and "hls_dir" in ch:
+                    errors.append(f"Chapter {i}: 'audio_file' and 'hls_dir' are mutually exclusive")
+                elif "audio_file" in ch:
                     p = (yaml_dir / ch["audio_file"]).resolve()
                     if not p.exists(): errors.append(f"Chapter {i}: audio_file not found: {p}")
                     elif not ch["audio_file"].lower().endswith(".mp3"):
                         errors.append(f"Chapter {i}: audio_file must be .mp3")
+                elif "hls_dir" in ch:
+                    hd = (yaml_dir / ch["hls_dir"]).resolve()
+                    if not hd.is_dir(): errors.append(f"Chapter {i}: hls_dir not found: {hd}")
+                    elif not (hd / "playlist.m3u8").exists(): errors.append(f"Chapter {i}: hls_dir missing playlist.m3u8")
     return errors
 
 

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import boto3
 from botocore.client import Config
 
@@ -43,3 +44,49 @@ def upload_chapter(audio_key: str, file_path: str) -> None:
 
 def object_key(book_id: str, chapter_idx: int) -> str:
     return f"{book_id}/{chapter_idx:03d}.mp3"
+
+
+# ── HLS helpers ───────────────────────────────────────────────────────────────
+
+def hls_playlist_key(book_id: str, chapter_idx: int) -> str:
+    return f"{book_id}/{chapter_idx:03d}/playlist.m3u8"
+
+
+def hls_segment_key(book_id: str, chapter_idx: int, seg_filename: str) -> str:
+    return f"{book_id}/{chapter_idx:03d}/{seg_filename}"
+
+
+def get_hls_playlist_content(playlist_key: str) -> str:
+    s3 = _client()
+    response = s3.get_object(Bucket=_BUCKET, Key=playlist_key)
+    return response["Body"].read().decode("utf-8")
+
+
+def get_segment_stream(segment_key: str):
+    """Return a streaming body for a .ts segment (for backend proxying)."""
+    s3 = _client()
+    response = s3.get_object(Bucket=_BUCKET, Key=segment_key)
+    return response["Body"]
+
+
+def upload_hls_chapter(book_id: str, chapter_idx: int, hls_dir: str) -> tuple[str, list[str]]:
+    """Upload playlist.m3u8 + all .ts segments from hls_dir. Returns (playlist_key, segment_names)."""
+    s3 = _client()
+    src = Path(hls_dir)
+    playlist_path = src / "playlist.m3u8"
+    if not playlist_path.exists():
+        raise FileNotFoundError(f"playlist.m3u8 not found in {hls_dir}")
+
+    playlist_key = hls_playlist_key(book_id, chapter_idx)
+    s3.upload_file(
+        str(playlist_path), _BUCKET, playlist_key,
+        ExtraArgs={"ContentType": "application/vnd.apple.mpegurl"},
+    )
+
+    segments = []
+    for seg in sorted(src.glob("*.ts")):
+        seg_key = hls_segment_key(book_id, chapter_idx, seg.name)
+        s3.upload_file(str(seg), _BUCKET, seg_key, ExtraArgs={"ContentType": "video/mp2t"})
+        segments.append(seg.name)
+
+    return playlist_key, segments

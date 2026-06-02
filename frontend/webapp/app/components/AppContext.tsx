@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { GE_BOOK_BY_ID, GE_CHAPTERS, Book, Chapter } from './bookdata'
 import * as Api from '../lib/api'
 import type { UserOut } from '../lib/api'
+import { getAudioEngine } from '../lib/audioEngine'
 
 export type { UserOut }
 
@@ -149,6 +150,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   useEffect(() => { booksByIdRef.current = booksById }, [booksById])
   const chaptersByIdRef = useRef(chaptersById)
   useEffect(() => { chaptersByIdRef.current = chaptersById }, [chaptersById])
+  const hlsActiveRef = useRef(false)
 
   // Book lookup helpers — fallback to static seed data
   const getBook = (id: string) => booksById[id] || GE_BOOK_BY_ID[id]
@@ -215,10 +217,84 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Playback engine with sleep countdown
+  // Wire up audio engine callbacks once
   useEffect(() => {
-    if (!np || !np.playing) return
+    const engine = getAudioEngine()
+    engine.onTimeUpdate = (sec) => {
+      setNp(p => {
+        if (!p) return p
+        const chs = chaptersByIdRef.current[p.bookId] || GE_CHAPTERS(booksByIdRef.current[p.bookId] || GE_BOOK_BY_ID[p.bookId])
+        const ch = chs[p.chapter]
+        const pos = ch ? ch.start + sec : sec
+        if (libraryRef.current.includes(p.bookId)) setProgress(pg => ({ ...pg, [p.bookId]: pos }))
+        return { ...p, pos }
+      })
+    }
+    engine.onEnded = () => {
+      setNp(p => {
+        if (!p) return p
+        const chs = chaptersByIdRef.current[p.bookId] || GE_CHAPTERS(booksByIdRef.current[p.bookId] || GE_BOOK_BY_ID[p.bookId])
+        const ni = p.chapter + 1
+        if (ni >= chs.length) {
+          getAudioEngine().pause()
+          return { ...p, playing: false }
+        }
+        return { ...p, chapter: ni, pos: chs[ni]?.start ?? p.pos }
+      })
+    }
+    return () => {
+      engine.onTimeUpdate = null
+      engine.onEnded = null
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load HLS when the book or chapter changes (only for owned books when signed in)
+  const currentChapterDbId = np ? chaptersById[np.bookId]?.[np.chapter]?.dbId : undefined
+  const isCurrentBookOwned = authed && np ? library.includes(np.bookId) : false
+  useEffect(() => {
+    if (!np || !isCurrentBookOwned) return
+    if (!currentChapterDbId) return
+    const { bookId, chapter } = np
+    const chs = chaptersByIdRef.current[bookId]
+    const ch = chs?.[chapter]
+    if (!ch) return
+    const chapterRelativePos = Math.max(0, np.pos - ch.start)
+    let cancelled = false
+    Api.getChapterHLS(bookId, currentChapterDbId).then(m3u8Text => {
+      if (cancelled) return
+      hlsActiveRef.current = true
+      getAudioEngine().load(m3u8Text, chapterRelativePos)
+      if (npRef.current?.playing) getAudioEngine().play()
+    }).catch((err) => {
+      console.error('[AudioEngine] HLS load failed:', err)
+      hlsActiveRef.current = false
+    })
+    return () => { cancelled = true }
+  }, [np?.bookId, np?.chapter, isCurrentBookOwned, currentChapterDbId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sleep countdown — always ticks while playing (regardless of HLS)
+  useEffect(() => {
+    if (!np?.playing) return
     const id = setInterval(() => {
+      setSleep(s => {
+        if (!s || s.remaining == null) return s
+        const remaining = s.remaining - 1
+        if (remaining <= 0) {
+          getAudioEngine().pause()
+          setNp(p => p ? { ...p, playing: false } : p)
+          return null
+        }
+        return { ...s, remaining }
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [np?.playing])
+
+  // Simulated position timer — fallback when HLS is not active (preview / not signed in)
+  useEffect(() => {
+    if (!np?.playing) return
+    const id = setInterval(() => {
+      if (hlsActiveRef.current) return
       setNp(p => {
         if (!p || !p.playing) return p
         const b = booksByIdRef.current[p.bookId] || GE_BOOK_BY_ID[p.bookId]
@@ -231,15 +307,6 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
         for (let i = 0; i < chs.length; i++) if (pos >= chs[i].start) chapter = i
         if (libraryRef.current.includes(p.bookId)) setProgress(pg => ({ ...pg, [p.bookId]: pos }))
         return { ...p, pos, playing, chapter }
-      })
-      setSleep(s => {
-        if (!s || s.remaining == null) return s
-        const remaining = s.remaining - 1
-        if (remaining <= 0) {
-          setNp(p => p ? { ...p, playing: false } : p)
-          return null
-        }
-        return { ...s, remaining }
       })
     }, 1000)
     return () => clearInterval(id)
@@ -271,7 +338,10 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     setNp(p => {
       let pos: number, ch: number
       if (chapter != null) { ch = chapter; pos = chs[chapter]?.start ?? 0 }
-      else if (p && p.bookId === id) { return { ...p, playing: true } }
+      else if (p && p.bookId === id) {
+        getAudioEngine().play()
+        return { ...p, playing: true }
+      }
       else if (progress[id]) {
         pos = progress[id]; ch = 0
         for (let i = 0; i < chs.length; i++) if (pos >= chs[i].start) ch = i
@@ -291,12 +361,25 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   const openPlayerAt = (id: string, ch: number) => { startBook(id, ch); setPlayerOpen(true); fetchAndCacheChapters(id) }
   const closePlayer = () => setPlayerOpen(false)
 
-  const togglePlay = () => setNp(p => p ? { ...p, playing: !p.playing } : p)
+  const togglePlay = () => setNp(p => {
+    if (!p) return p
+    const willPlay = !p.playing
+    if (willPlay) getAudioEngine().play(); else getAudioEngine().pause()
+    return { ...p, playing: willPlay }
+  })
   const seekRel = (s: number) => setNp(p => {
     if (!p) return p
     const b = getBook(p.bookId)
     if (!b) return p
-    return { ...p, pos: Math.max(0, Math.min(b.secs, p.pos + s)) }
+    const newPos = Math.max(0, Math.min(b.secs, p.pos + s))
+    const chs = getChapters(p.bookId)
+    let newChapter = p.chapter
+    for (let i = 0; i < chs.length; i++) if (newPos >= chs[i].start) newChapter = i
+    if (newChapter === p.chapter) {
+      const ch = chs[p.chapter]
+      if (ch && hlsActiveRef.current) getAudioEngine().seek(newPos - ch.start)
+    }
+    return { ...p, pos: newPos, chapter: newChapter }
   })
   const seekPct = (pct: number) => setNp(p => {
     if (!p) return p
@@ -306,6 +389,10 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     const pos = (pct / 100) * b.secs
     let ch = 0
     for (let i = 0; i < chs.length; i++) if (pos >= chs[i].start) ch = i
+    if (ch === p.chapter) {
+      const chapter = chs[p.chapter]
+      if (chapter && hlsActiveRef.current) getAudioEngine().seek(pos - chapter.start)
+    }
     return { ...p, pos, chapter: ch }
   })
   const skipChapter = (d: number) => setNp(p => {
@@ -319,11 +406,16 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     const chs = getChapters(p.bookId)
     return { ...p, chapter: i, pos: chs[i]?.start ?? p.pos, playing: true }
   })
-  const setSpeed = (s: number) => setNp(p => p ? { ...p, speed: s } : p)
+  const setSpeed = (s: number) => {
+    getAudioEngine().setRate(s)
+    setNp(p => p ? { ...p, speed: s } : p)
+  }
   const cycleSpeed = () => setNp(p => {
     if (!p) return p
     const i = SPEEDS.indexOf(p.speed)
-    return { ...p, speed: SPEEDS[(i + 1) % SPEEDS.length] }
+    const s = SPEEDS[(i + 1) % SPEEDS.length]
+    getAudioEngine().setRate(s)
+    return { ...p, speed: s }
   })
 
   // Bookmarks
@@ -351,7 +443,13 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   }
 
   const goBookmark = (bm: Bookmark) => {
-    setNp(p => ({ bookId: bm.bookId, chapter: bm.chapter, pos: bm.pos, playing: true, speed: p?.speed || 1 }))
+    const p = npRef.current
+    if (p && p.bookId === bm.bookId && p.chapter === bm.chapter && hlsActiveRef.current) {
+      const chs = chaptersByIdRef.current[p.bookId] || GE_CHAPTERS(booksByIdRef.current[p.bookId] || GE_BOOK_BY_ID[p.bookId])
+      const ch = chs[bm.chapter]
+      if (ch) getAudioEngine().seek(bm.pos - ch.start)
+    }
+    setNp(() => ({ bookId: bm.bookId, chapter: bm.chapter, pos: bm.pos, playing: true, speed: p?.speed || 1 }))
   }
 
   // Sleep timer
@@ -442,6 +540,8 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   const signOut = () => {
     localStorage.removeItem(LS_TOKEN)
     Api.setToken(null)
+    getAudioEngine().pause()
+    hlsActiveRef.current = false
     setAuthed(false)
     setUser(null)
     setCart([])
