@@ -230,16 +230,16 @@ export function AccountMenu() {
   return (
     <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
       <button onClick={() => setOpen(o => !o)} title="Account" style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid ' + (open ? T.line2 : 'transparent'), background: open ? T.surface : 'transparent', borderRadius: 99, padding: '4px 8px 4px 4px', cursor: 'pointer' }}>
-        <div style={{ width: 34, height: 34, borderRadius: 17, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.disp, fontWeight: 700, fontSize: 15, color: '#fff' }}>J</div>
+        <div style={{ width: 34, height: 34, borderRadius: 17, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.disp, fontWeight: 700, fontSize: 15, color: '#fff' }}>{(app.user?.name?.[0] || 'G').toUpperCase()}</div>
         <GEIcon.chevD s={15} style={{ color: T.mut, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
       </button>
       {open && (
         <div style={{ position: 'absolute', top: 'calc(100% + 10px)', right: 0, width: 244, background: T.surface, border: '1px solid ' + T.line2, borderRadius: 14, boxShadow: T.shadow, padding: 8, zIndex: 60 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 10px 12px' }}>
-            <div style={{ width: 40, height: 40, borderRadius: 20, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.disp, fontWeight: 700, fontSize: 17, color: '#fff', flexShrink: 0 }}>J</div>
+            <div style={{ width: 40, height: 40, borderRadius: 20, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.disp, fontWeight: 700, fontSize: 17, color: '#fff', flexShrink: 0 }}>{(app.user?.name?.[0] || 'G').toUpperCase()}</div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 15, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Jordan Avery</div>
-              <div style={{ fontSize: 12, color: T.mut, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>jordan.avery@example.com</div>
+              <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 15, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{app.user?.name || 'Listener'}</div>
+              <div style={{ fontSize: 12, color: T.mut, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{app.user?.email || ''}</div>
             </div>
           </div>
           <div style={{ height: 1, background: T.line, margin: '0 6px 6px' }} />

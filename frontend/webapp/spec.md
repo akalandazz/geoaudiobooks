@@ -200,6 +200,26 @@ All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
 | `.ge-card` / `.ge-cardplay` | Hover-reveal play button on BookCard |
 | `.ge-eq` | Equalizer bars — never set inline `height` |
 
+**Auth screen classes** (declared in `globals.css`, used only in `Auth.tsx`):
+
+| Class | Use |
+|---|---|
+| `.ge-auth` | Root auth wrapper; combined with `.ge-pre` (entrance hidden) and `.ge-shown` (entrance complete — removes transitions) |
+| `.ge-base` | Deep-space radial gradient layer |
+| `.ge-neb` | Blurred nebula glow blob (absolutely positioned) |
+| `.ge-grain` | Film-grain overlay via `radial-gradient` background-image |
+| `.ge-particle` | Single floating starfield dot |
+| `.ge-parallax` | Any element moved by mouse parallax; reads `data-depth` attribute |
+| `.ge-float` / `.ge-floatB` / `.ge-floatC` / `.ge-floatD` | Four floating-bob animation variants (9 s / 12.5 s / 15 s / 11 s periods) |
+| `.ge-tilt` | Cover card shell — `transform-style: preserve-3d`; inline `transform` from mouse-move handler |
+| `.ge-glass` | Glassmorphism panel — `backdrop-filter: blur(30px)`; `::before` adds inner top glow |
+| `.ge-field` | Icon + input row inside the glass panel |
+| `.ge-rip` | Ripple DOM node injected by `RippleButton` on click |
+| `.ge-rev` | Entry animation base — `opacity`/`transform` transition; combined with `.ge-rev-up` / `.ge-rev-right` / `.ge-rev-card` offset variants |
+| `.ge-orbit` | Dashed SVG ellipse path — `stroke-dasharray: 2 9`; `geDash` infinite loop |
+
+`prefers-reduced-motion` disables all keyframe animations and collapses transition durations.
+
 ---
 
 ## 10. Pitfalls

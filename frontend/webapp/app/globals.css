@@ -47,3 +47,92 @@ input::placeholder {
 .ge-eq {
   animation: ge-eq 0.7s ease-in-out infinite;
 }
+
+/* ── Auth screen animations ── */
+.ge-auth, .ge-auth * { box-sizing: border-box; }
+.ge-base {
+  position: absolute; inset: 0;
+  background: radial-gradient(120% 95% at 64% 30%, #1a0f33 0%, #120a26 34%, #0a0616 64%, #060410 100%);
+}
+.ge-neb {
+  position: absolute; border-radius: 50%;
+  filter: blur(70px); will-change: transform; pointer-events: none;
+}
+.ge-grain {
+  position: absolute; inset: 0; opacity: .42; mix-blend-mode: overlay;
+  background-image: radial-gradient(rgba(255,255,255,.5) .5px, transparent .6px);
+  background-size: 4px 4px; pointer-events: none;
+}
+.ge-particle {
+  position: absolute; border-radius: 50%;
+  background: #fff; will-change: transform, opacity; pointer-events: none;
+}
+.ge-parallax { will-change: transform; }
+.ge-float  { animation: geFloatA 9s   ease-in-out infinite; }
+.ge-floatB { animation: geFloatB 12.5s ease-in-out infinite; }
+.ge-floatC { animation: geFloatC 15s  ease-in-out infinite; }
+.ge-floatD { animation: geFloatD 11s  ease-in-out infinite; }
+.ge-tilt {
+  transform-style: preserve-3d; will-change: transform; overflow: hidden;
+  transition: transform .4s cubic-bezier(.22,1,.36,1), box-shadow .4s ease;
+  cursor: default;
+}
+.ge-tilt img { display: block; width: 100%; height: auto; }
+.ge-eqbar { transform-origin: bottom; animation: geEq 1.1s ease-in-out infinite; }
+.ge-glass {
+  position: relative;
+  background: linear-gradient(165deg, rgba(34,22,58,.62), rgba(13,9,26,.72));
+  backdrop-filter: blur(30px) saturate(1.25);
+  -webkit-backdrop-filter: blur(30px) saturate(1.25);
+  border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 40px 100px -28px rgba(0,0,0,.78), 0 0 0 1px rgba(255,255,255,.04) inset, 0 1px 0 rgba(255,255,255,.14) inset;
+}
+.ge-glass::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 46%;
+  border-radius: 26px 26px 60% 60%;
+  background: radial-gradient(120% 100% at 50% 0%, rgba(168,139,250,.14), transparent 70%);
+  pointer-events: none;
+}
+.ge-field {
+  position: relative; display: flex; align-items: center; gap: 11px;
+  border-radius: 13px; padding: 0 14px; height: 54px;
+  transition: border-color .22s, box-shadow .22s, background .22s;
+}
+.ge-field input {
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none; height: 100%;
+}
+.ge-rip {
+  position: absolute; border-radius: 50%;
+  transform: translate(-50%,-50%) scale(0);
+  background: rgba(255,255,255,.4); pointer-events: none;
+  animation: geRip .6s ease-out forwards;
+}
+.ge-rev {
+  transition: opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1);
+}
+.ge-pre .ge-rev      { opacity: 0 !important; }
+.ge-pre .ge-rev-up   { transform: translateY(26px); }
+.ge-pre .ge-rev-right { transform: translateX(52px); }
+.ge-pre .ge-rev-card { transform: translateY(34px) scale(.9); }
+.ge-auth.ge-shown .ge-rev { opacity: 1 !important; transform: none !important; transition: none !important; }
+.ge-orbit { stroke-dasharray: 2 9; animation: geDash 60s linear infinite; }
+
+@keyframes geFloatA { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-18px)} }
+@keyframes geFloatB { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-28px)} }
+@keyframes geFloatC { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
+@keyframes geFloatD { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-24px)} }
+@keyframes geNeb1 { 0%{transform:translate(0,0)} 33%{transform:translate(44px,-30px)} 66%{transform:translate(-26px,24px)} 100%{transform:translate(0,0)} }
+@keyframes geNeb2 { 0%{transform:translate(0,0)} 50%{transform:translate(-40px,30px)} 100%{transform:translate(0,0)} }
+@keyframes geParticle { 0%{transform:translateY(0);opacity:0} 12%{opacity:.55} 88%{opacity:.55} 100%{transform:translateY(-150px);opacity:0} }
+@keyframes geEq { 0%,100%{transform:scaleY(.28)} 50%{transform:scaleY(1)} }
+@keyframes geRip { to { transform:translate(-50%,-50%) scale(1); opacity:0; } }
+@keyframes geDash { to { stroke-dashoffset: -1000; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ge-neb, .ge-particle,
+  .ge-float, .ge-floatB, .ge-floatC, .ge-floatD,
+  .ge-eqbar, .ge-orbit { animation: none !important; }
+  .ge-rev { transition-duration: .4s !important; }
+  .ge-pre .ge-rev-up, .ge-pre .ge-rev-right, .ge-pre .ge-rev-card { transform: none !important; }
+  .ge-parallax { transition: none !important; transform: none !important; }
+}
