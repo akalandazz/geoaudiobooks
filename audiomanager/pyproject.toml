@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "booksmanager"
+version = "0.1.0"
+description = "GeoAudiobooks content management CLI"
+requires-python = ">=3.11"
+dependencies = [
+    "typer[all]>=0.12",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    "python-dotenv>=1.0",
+    "boto3>=1.34",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+booksmanager = "booksmanager.main:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["booksmanager*"]
