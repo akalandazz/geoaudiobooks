@@ -5,10 +5,11 @@
 ## Running
 
 ```bash
-docker compose up                          # starts postgres:16 + backend on :8000
+docker compose up                          # starts postgres:16 + minio + backend on :8000
 alembic upgrade head                       # run migrations (from backend/)
 python -m app.seed                         # seed 12 books + chapters (once)
 http://localhost:8000/docs                 # OpenAPI UI
+http://localhost:9001                      # MinIO console (minioadmin / minioadmin)
 ```
 
 Copy `backend/.env.example` → `backend/.env` before first run.
@@ -25,9 +26,11 @@ backend/
 │   ├── auth.py        # hash_password, verify_password, create_token, decode_token
 │   ├── deps.py        # get_db, get_current_user (Bearer token)
 │   ├── seed.py        # seeds books + chapters; idempotent
+│   ├── storage.py     # boto3 MinIO client; presign_chapter, upload_chapter, object_key, ensure_bucket_exists
 │   └── routers/
 │       ├── auth.py        # /auth/signup  /auth/signin  /auth/forgot-password
 │       ├── books.py       # /books  /books/{id}  /books/{id}/chapters
+│       ├── audio.py       # /books/{id}/chapters/{id}/audio  (ownership-gated pre-signed URL)
 │       ├── cart.py        # /cart  /cart/{book_id}
 │       ├── orders.py      # /orders/checkout  /orders
 │       ├── library.py     # /library
@@ -47,7 +50,7 @@ backend/
 |---|---|
 | `users` | id (UUID), email (unique), password_hash, name, is_premium |
 | `books` | id (slug), title, author, narrator, genre, duration_secs, rating_avg, reviews_count, price, year, tags (JSONB), blurb, palette (JSONB), motif |
-| `chapters` | id, book_id, idx, title, length_secs, start_secs |
+| `chapters` | id, book_id, idx, title, length_secs, start_secs, audio_key (nullable) |
 | `cart_items` | user_id, book_id — unique pair |
 | `wishlist_items` | user_id, book_id — unique pair |
 | `orders` | id (UUID), user_id, total, status (completed) |
@@ -66,7 +69,8 @@ All protected routes require `Authorization: Bearer <token>`.
 | POST | /auth/forgot-password | — | stub, no email sent |
 | GET | /books | — | query: `q`, `genre`, `min_price`, `max_price`, `min_rating`, `sort`, `page`, `limit` |
 | GET | /books/{id} | — | |
-| GET | /books/{id}/chapters | — | |
+| GET | /books/{id}/chapters | — | `ChapterOut` includes `audio_key` (null if no file uploaded) |
+| GET | /books/{id}/chapters/{chapter_id}/audio | ✓ | 403 if book not owned; 404 if no audio_key; returns `{url, expires_in}` pre-signed MinIO URL |
 | GET | /cart | ✓ | includes total |
 | POST | /cart/{book_id} | ✓ | idempotent |
 | DELETE | /cart/{book_id} | ✓ | |

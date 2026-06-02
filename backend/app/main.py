@@ -1,8 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, books, cart, orders, library, progress, bookmarks, users, wishlist
+from app.routers import auth, books, cart, orders, library, progress, bookmarks, users, wishlist, audio
+from app.storage import ensure_bucket_exists
 
 app = FastAPI(title="GeoAudiobooks API", version="1.0.0")
+
+
+@app.on_event("startup")
+async def startup_event():
+    ensure_bucket_exists()
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,6 +27,7 @@ app.include_router(progress.router)
 app.include_router(bookmarks.router)
 app.include_router(users.router)
 app.include_router(wishlist.router)
+app.include_router(audio.router)
 
 
 @app.get("/health")

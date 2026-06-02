@@ -58,7 +58,9 @@ Typed fetch wrapper around the FastAPI backend (`NEXT_PUBLIC_API_URL`, default `
 - `setToken(t)` / `getToken()` — module-level JWT storage (called by AppContext after sign-in)
 - `toBook(BookOut)` → `Book` · `toChapter(ChapterOut)` → `Chapter` · `toBookmark(BookmarkOut)` → `Bookmark`
 - `ApiError` — thrown on non-2xx; has `.status: number`
-- One exported function per endpoint: `signIn`, `signUp`, `getMe`, `updateMe`, `getBooks`, `getChapters`, `getCart`, `addToCart`, `removeFromCart`, `checkout`, `getLibrary`, `getProgress`, `updateProgress`, `getBookmarks`, `addBookmark`, `deleteBookmark`, `getWishlist`, `addToWishlist`, `removeFromWishlist`
+- `ChapterOut` includes `audio_key: string | null` — null until an MP3 is uploaded to MinIO for that chapter
+- `ChapterAudioResponse` — `{ url: string; expires_in: number }` — pre-signed MinIO URL, valid for 1 hour
+- One exported function per endpoint: `signIn`, `signUp`, `getMe`, `updateMe`, `getBooks`, `getChapters`, `getChapterAudio(bookId, chapterId)`, `getCart`, `addToCart`, `removeFromCart`, `checkout`, `getLibrary`, `getProgress`, `updateProgress`, `getBookmarks`, `addBookmark`, `deleteBookmark`, `getWishlist`, `addToWishlist`, `removeFromWishlist`
 
 ---
 
@@ -117,7 +119,7 @@ interface Sleep      { mode: 'time'|'chapter'; minutes?: number; remaining: numb
 
 **Persistence (`localStorage 'geaudio.state.v1'`):** Only `nowPlaying` (with `playing:false`) and `progress`. Cart/library/wishlist/bookmarks are backend-authoritative. JWT stored separately under `'geaudio.token'`.
 
-**Playback engine:** 1s interval when `np.playing`. Advances `pos` by `speed`, updates chapter index, uses `booksById`/`chaptersById` with `GE_*` fallbacks. **Progress sync:** every 10s while playing, `PUT /progress/{bookId}` fires via `setInterval` reading state through refs.
+**Playback engine:** 1s interval when `np.playing`. Advances `pos` by `speed`, updates chapter index, uses `booksById`/`chaptersById` with `GE_*` fallbacks. **Progress sync:** every 10s while playing, `PUT /progress/{bookId}` fires via `setInterval` reading state through refs. **Real audio:** wire `getChapterAudio(bookId, chapterId)` → pre-signed URL → `<audio>` element; fall back to simulation if the chapter has no `audio_key`.
 
 **`continueBooks`** — library books with `progress > 0`, sorted by % complete.
 

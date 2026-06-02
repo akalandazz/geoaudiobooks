@@ -60,6 +60,7 @@ class Chapter(Base):
     title = Column(String, nullable=False)
     length_secs = Column(Integer, nullable=False)
     start_secs = Column(Integer, nullable=False)
+    audio_key = Column(String, nullable=True)
 
     book = relationship("Book", back_populates="chapters")
 

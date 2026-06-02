@@ -47,8 +47,14 @@ class ChapterOut(BaseModel):
     title: str
     length_secs: int
     start_secs: int
+    audio_key: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class ChapterAudioResponse(BaseModel):
+    url: str
+    expires_in: int
 
 class BookOut(BaseModel):
     id: str
