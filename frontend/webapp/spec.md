@@ -9,7 +9,7 @@ Read before touching any component.
 | File | Role |
 |---|---|
 | `app/layout.tsx` | Root HTML shell. Loads 4 fonts via `next/font/google`. Sets CSS vars on `<html>`. |
-| `app/globals.css` | `@import "tailwindcss"` (v4). Declares `ge-eq` keyframe, `.ge-scroll`, `.ge-card/.ge-cardplay`. `body { background: #0B0B12; overflow: hidden }`. |
+| `app/globals.css` | `@import "tailwindcss"` (v4). Declares auth-screen classes, `ge-eq`, `ge-viewenter`, `ge-rowin`, `ge-playerin` keyframes, `.ge-scroll`, `.ge-card/.ge-cardplay`. `body { background: #0B0B12; overflow: hidden }`. |
 | `app/page.tsx` | `'use client'` + `dynamic(() => import('./components/App'), { ssr: false })`. Both required — Next.js 16 forbids `ssr:false` in Server Components; `localStorage`/`window.innerWidth` read at init. |
 
 ---
@@ -199,6 +199,9 @@ All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
 | `.ge-scroll` | Hide scrollbars on scrollable containers |
 | `.ge-card` / `.ge-cardplay` | Hover-reveal play button on BookCard |
 | `.ge-eq` | Equalizer bars — never set inline `height` |
+| `.ge-viewenter` | Wraps each screen in `App.tsx` (keyed by `app.view`); triggers fade-up entrance on every nav change |
+| `.ge-viewenter [data-stagger]` | Child rows stagger in with 6 nth-child delay steps (.04–.34s); add `data-stagger` to carousel `Row` wrappers |
+| `.ge-playerin` | Applied to both `PlayerDesktop` and `PlayerMobile` root divs; slides the player up from the bottom |
 
 **Auth screen classes** (declared in `globals.css`, used only in `Auth.tsx`):
 

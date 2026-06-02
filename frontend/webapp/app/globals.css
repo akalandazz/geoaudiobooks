@@ -128,6 +128,36 @@ input::placeholder {
 @keyframes geRip { to { transform:translate(-50%,-50%) scale(1); opacity:0; } }
 @keyframes geDash { to { stroke-dashoffset: -1000; } }
 
+/* Page transition — content rises & fades in on every view change */
+@keyframes ge-viewenter {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ge-viewenter {
+  animation: ge-viewenter .40s cubic-bezier(.22,.61,.36,1) both;
+  will-change: opacity, transform;
+}
+
+/* Per-row stagger so carousels cascade in under the page rise */
+@keyframes ge-rowin {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ge-viewenter [data-stagger] { animation: ge-rowin .5s cubic-bezier(.22,.61,.36,1) both; }
+.ge-viewenter [data-stagger]:nth-child(1) { animation-delay: .04s; }
+.ge-viewenter [data-stagger]:nth-child(2) { animation-delay: .10s; }
+.ge-viewenter [data-stagger]:nth-child(3) { animation-delay: .16s; }
+.ge-viewenter [data-stagger]:nth-child(4) { animation-delay: .22s; }
+.ge-viewenter [data-stagger]:nth-child(5) { animation-delay: .28s; }
+.ge-viewenter [data-stagger]:nth-child(6) { animation-delay: .34s; }
+
+/* Full-screen player slides up from the bottom */
+@keyframes ge-playerin {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ge-playerin { animation: ge-playerin .42s cubic-bezier(.22,.61,.36,1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .ge-neb, .ge-particle,
   .ge-float, .ge-floatB, .ge-floatC, .ge-floatD,
@@ -135,4 +165,5 @@ input::placeholder {
   .ge-rev { transition-duration: .4s !important; }
   .ge-pre .ge-rev-up, .ge-pre .ge-rev-right, .ge-pre .ge-rev-card { transform: none !important; }
   .ge-parallax { transition: none !important; transform: none !important; }
+  .ge-viewenter, .ge-viewenter [data-stagger], .ge-playerin { animation: none !important; }
 }

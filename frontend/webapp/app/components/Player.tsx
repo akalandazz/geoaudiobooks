@@ -180,7 +180,7 @@ export function PlayerDesktop() {
   const speeds = [0.8, 1, 1.25, 1.5, 1.75, 2]
   const bmCount = app.bookmarks.filter(x => x.bookId === np.bookId).length
   return (
-    <div style={{
+    <div className="ge-playerin" style={{
       position: 'absolute', inset: 0, zIndex: 50, fontFamily: T.body, color: T.text, overflow: 'hidden',
       background: `radial-gradient(90% 70% at 22% 6%, ${b.palette[1]}66 0%, transparent 55%), linear-gradient(180deg,#0b0b12,#08080d)`,
     }}>
@@ -348,7 +348,7 @@ export function PlayerMobile() {
   const ch = chapters[np.chapter] || chapters[0]
   const coverW = Math.min(330, app.w - 60)
   return (
-    <div style={{
+    <div className="ge-playerin" style={{
       position: 'absolute', inset: 0, zIndex: 50, fontFamily: T.body, color: T.text, overflow: 'hidden', display: 'flex', flexDirection: 'column',
       background: `radial-gradient(80% 46% at 50% 0%, ${b.palette[1]} 0%, transparent 58%), linear-gradient(180deg,#0c0716,#08060d)`,
     }}>

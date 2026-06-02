@@ -43,7 +43,9 @@ function Shell() {
       {mobile ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {app.view === 'home' && <MobileTop />}
-          <ScreenComp />
+          <div key={app.view} className="ge-viewenter" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <ScreenComp />
+          </div>
           <MiniPlayer mobile />
           <BottomNav />
         </div>
@@ -52,7 +54,9 @@ function Shell() {
           <Sidebar />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <TopBar search={app.view === 'search' ? app.search : ''} />
-            <ScreenComp />
+            <div key={app.view} className="ge-viewenter" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <ScreenComp />
+            </div>
             <MiniPlayer />
           </div>
         </>

@@ -27,14 +27,23 @@ export function Sidebar() {
   const app = useApp()
   const Item = ({ icon, label, view }: { icon: React.ReactNode; label: string; view: string }) => {
     const active = app.view === view
+    const [hov, setHov] = React.useState(false)
     return (
-      <div onClick={() => app.nav(view)} style={{
-        display: 'flex', alignItems: 'center', gap: 14, padding: '10px 12px',
-        borderRadius: 10, cursor: 'pointer', color: active ? T.text : T.mut,
-        background: active ? T.elev : 'transparent',
-        fontFamily: T.body, fontWeight: 600, fontSize: 14.5, transition: 'all .15s',
-      }}>
-        {icon}{label}
+      <div onClick={() => app.nav(view)}
+        onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+        style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, padding: '10px 12px',
+          borderRadius: 10, cursor: 'pointer',
+          color: active || hov ? T.text : T.mut,
+          background: active ? T.elev : (hov ? T.surface : 'transparent'),
+          transform: hov && !active ? 'translateX(3px)' : 'translateX(0)',
+          fontFamily: T.body, fontWeight: 600, fontSize: 14.5,
+          transition: 'background .2s ease, color .2s ease, transform .22s cubic-bezier(.22,.61,.36,1)' }}>
+        <span style={{ position: 'absolute', left: -2, top: '50%', width: 3, height: active ? 18 : 0,
+          borderRadius: 3, background: T.accent2, transform: 'translateY(-50%)',
+          transition: 'height .26s cubic-bezier(.34,1.56,.64,1)' }} />
+        <span style={{ display: 'flex', transform: active ? 'scale(1.06)' : (hov ? 'scale(1.14)' : 'scale(1)'),
+          transition: 'transform .24s cubic-bezier(.34,1.56,.64,1)' }}>{icon}</span>
+        {label}
       </div>
     )
   }
@@ -89,8 +98,9 @@ export function BottomNav() {
       <div onClick={() => app.nav(view)} style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
         padding: '8px 0', cursor: 'pointer', color: active ? T.accent2 : T.mut,
+        transition: 'color .2s ease',
       }}>
-        {icon}
+        <span style={{ display: 'flex', transform: active ? 'translateY(-2px) scale(1.12)' : 'translateY(0) scale(1)', transition: 'transform .26s cubic-bezier(.34,1.56,.64,1)' }}>{icon}</span>
         <span style={{ fontFamily: T.body, fontWeight: 700, fontSize: 10.5 }}>{label}</span>
       </div>
     )
@@ -261,10 +271,12 @@ export function TopBar({ search }: { search?: string }) {
   return (
     <div style={{ height: 66, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 16, padding: '0 28px', borderBottom: '1px solid ' + T.line }}>
       {!onSearchView && (
-        <div onClick={() => app.nav('search')} style={{
-          display: 'flex', alignItems: 'center', gap: 9, background: T.surface,
-          border: '1px solid ' + T.line, borderRadius: 22, padding: '9px 16px', width: 380, cursor: 'text',
-        }}>
+        <div onClick={() => app.nav('search')}
+          onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.background = T.elev; el.style.borderColor = T.line2; el.style.transform = 'scale(1.01)' }}
+          onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.background = T.surface; el.style.borderColor = T.line; el.style.transform = 'scale(1)' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 9, background: T.surface,
+            border: '1px solid ' + T.line, borderRadius: 22, padding: '9px 16px', width: 380, cursor: 'text',
+            transformOrigin: 'left center', transition: 'background .2s ease, border-color .2s ease, transform .2s ease' }}>
           <GEIcon.search s={18} style={{ color: T.mut }} />
           <span style={{ color: T.dim, fontSize: 14 }}>{search || 'Search titles, authors, narrators…'}</span>
         </div>
@@ -339,7 +351,7 @@ export function BookCard({ b, w = 158, progress, onClick }: { b: Book; w?: numbe
 // ── Row (carousel) ──
 export function Row({ title, sub, books, progressMap, onShowAll }: { title: string; sub?: string; books: Book[]; progressMap?: Record<string, number> | null; onShowAll?: () => void }) {
   return (
-    <div style={{ marginBottom: 34 }}>
+    <div data-stagger style={{ marginBottom: 34 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16, gap: 16 }}>
         <div style={{ minWidth: 0 }}>
           <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 21, color: T.text, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>{title}</span>
