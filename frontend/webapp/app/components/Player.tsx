@@ -181,7 +181,12 @@ export function PlayerDesktop() {
   const chapters = app.chaptersById[np.bookId] || GE_CHAPTERS(b)
   const sampleEnd = chapters.length > SAMPLE_CH ? (chapters[SAMPLE_CH]?.start ?? b.secs) : b.secs
   const playLen = owned ? b.secs : sampleEnd
-  const pct = (np.pos / playLen) * 100
+  const ch = chapters[np.chapter] || chapters[0]
+  const chapterStart = ch?.start ?? 0
+  const chapterLen = ch?.len ?? playLen
+  const chapterPos = Math.max(0, np.pos - chapterStart)
+  const pct = chapterLen > 0 ? (chapterPos / chapterLen) * 100 : 0
+  const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
   const atSampleEnd = !owned && np.pos >= playLen - 1
   const speeds = [0.8, 1, 1.25, 1.5, 1.75, 2]
   const bmCount = app.bookmarks.filter(x => x.bookId === np.bookId).length
@@ -278,9 +283,9 @@ export function PlayerDesktop() {
       {/* transport */}
       <div style={{ position: 'absolute', left: 44, right: 44, bottom: 40 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ fontSize: 12.5, color: T.mut, fontVariantNumeric: 'tabular-nums', width: 60 }}>{fmt(np.pos)}</span>
-          <Waveform pct={pct} count={130} onSeek={app.seekPct} />
-          <span style={{ fontSize: 12.5, color: T.mut, fontVariantNumeric: 'tabular-nums', width: 60, textAlign: 'right' }}>{fmt(playLen)}</span>
+          <span style={{ fontSize: 12.5, color: T.mut, fontVariantNumeric: 'tabular-nums', width: 60 }}>{fmt(chapterPos)}</span>
+          <Waveform pct={pct} count={130} onSeek={seekInChapter} />
+          <span style={{ fontSize: 12.5, color: T.mut, fontVariantNumeric: 'tabular-nums', width: 60, textAlign: 'right' }}>{fmt(chapterLen)}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 30, marginTop: 24 }}>
           <SpeedMenu speeds={speeds} value={np.speed} onPick={app.setSpeed} />
@@ -374,8 +379,12 @@ export function PlayerMobile() {
   const chapters = app.chaptersById[np.bookId] || GE_CHAPTERS(b)
   const sampleEnd = chapters.length > SAMPLE_CH ? (chapters[SAMPLE_CH]?.start ?? b.secs) : b.secs
   const playLen = owned ? b.secs : sampleEnd
-  const pct = (np.pos / playLen) * 100
   const ch = chapters[np.chapter] || chapters[0]
+  const chapterStart = ch?.start ?? 0
+  const chapterLen = ch?.len ?? playLen
+  const chapterPos = Math.max(0, np.pos - chapterStart)
+  const pct = chapterLen > 0 ? (chapterPos / chapterLen) * 100 : 0
+  const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
   const coverW = Math.min(330, app.w - 60)
   return (
     <div className="ge-playerin" style={{
@@ -408,9 +417,9 @@ export function PlayerMobile() {
           </div>
         )}
         <div style={{ marginTop: 24 }}>
-          <Waveform pct={pct} count={50} onSeek={app.seekPct} height={34} />
+          <Waveform pct={pct} count={50} onSeek={seekInChapter} height={34} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: T.mut, fontVariantNumeric: 'tabular-nums', marginTop: 8 }}>
-            <span>{fmt(np.pos)}</span><span>-{fmt(playLen - np.pos)}</span>
+            <span>{fmt(chapterPos)}</span><span>-{fmt(chapterLen - chapterPos)}</span>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginTop: 22 }}>

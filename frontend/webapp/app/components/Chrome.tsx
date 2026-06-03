@@ -6,7 +6,7 @@ import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { IconBtn, Scrubber } from './Atoms'
 import { SleepControl } from './Player'
-import { GE_BOOK_BY_ID, GE_BOOKS, Book, fmtClock, fmt } from './bookdata'
+import { GE_BOOK_BY_ID, GE_BOOKS, GE_CHAPTERS, Book, fmtClock, fmt } from './bookdata'
 import { useApp } from './AppContext'
 
 // ── Logo ──
@@ -373,14 +373,20 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   if (!np) return null
   const b = app.booksById[np.bookId] || GE_BOOK_BY_ID[np.bookId]
   if (!b) return null
-  const pct = (np.pos / b.secs) * 100
+  const chapters = app.chaptersById[np.bookId] || GE_CHAPTERS(b)
+  const ch = chapters[np.chapter] || chapters[0]
+  const chapterStart = ch?.start ?? 0
+  const chapterLen = ch?.len ?? b.secs
+  const chapterPos = Math.max(0, np.pos - chapterStart)
+  const pct = chapterLen > 0 ? (chapterPos / chapterLen) * 100 : 0
+  const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
   if (mobile) {
     return (
       <div onClick={() => app.openPlayer(b.id)} style={{ flexShrink: 0, margin: '0 8px 4px', background: T.elev, borderRadius: 12, padding: 8, display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', position: 'relative', overflow: 'hidden' }}>
         <BookCover book={b} w={42} radius={7} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 13.5, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
-          <div style={{ fontSize: 11.5, color: T.mut }}>{fmtClock(b.secs - np.pos)} left</div>
+          <div style={{ fontSize: 11.5, color: T.mut }}>{fmtClock(chapterLen - chapterPos)} left</div>
         </div>
         <IconBtn size={40} onClick={e => { e.stopPropagation(); app.togglePlay() }} style={{ color: T.text }}>
           {np.playing ? <GEIcon.pause s={22} /> : <GEIcon.play s={22} />}
@@ -412,9 +418,9 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
           <IconBtn size={34} onClick={() => app.seekRel(30)}><GEIcon.fwd30 s={20} /></IconBtn>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '74%' }}>
-          <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(np.pos)}</span>
-          <Scrubber pct={pct} onSeek={p => app.seekPct(p)} />
-          <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(b.secs)}</span>
+          <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(chapterPos)}</span>
+          <Scrubber pct={pct} onSeek={seekInChapter} />
+          <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(chapterLen)}</span>
         </div>
       </div>
       <div style={{ width: 200, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, color: T.mut }}>
