@@ -1,0 +1,1 @@
+- [Frontend recurring patterns](project_frontend_patterns.md) — Anti-patterns and conventions found in the first full frontend read (AppContext, Player, Chrome, Commerce, Account, Auth)

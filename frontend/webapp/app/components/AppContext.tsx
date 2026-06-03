@@ -254,6 +254,13 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Ensure chapters are fetched whenever nowPlaying is set (covers the MiniPlayer path
+  // where openPlayer is never called, so fetchAndCacheChapters would otherwise never run).
+  useEffect(() => {
+    if (!np?.bookId || chaptersById[np.bookId]) return
+    fetchAndCacheChapters(np.bookId)
+  }, [np?.bookId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load HLS when the book or chapter changes.
   // Chapter 0 (free sample) is always loadable; other chapters require ownership.
   const SAMPLE_CH_IDX = 0
@@ -378,7 +385,9 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   }
 
   const fetchAndCacheChapters = (id: string) => {
-    if (chaptersById[id]) return
+    if (chaptersByIdRef.current[id]) return
+    const b = booksByIdRef.current[id] || GE_BOOK_BY_ID[id]
+    if (b) setChaptersById(prev => ({ ...prev, [id]: GE_CHAPTERS(b) }))
     Api.getChapters(id).then(chs => {
       setChaptersById(prev => ({ ...prev, [id]: chs.map(Api.toChapter) }))
     }).catch(() => {})
@@ -428,6 +437,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     const chs = getChapters(p.bookId)
     const owned = libraryRef.current.includes(p.bookId)
     const ni = Math.max(0, Math.min(chs.length - 1, p.chapter + d))
+    if (ni === p.chapter) return p
     const locked = chapterLocked(ni, owned)
     if (locked) getAudioEngine().pause()
     return { ...p, chapter: ni, pos: chs[ni]?.start ?? p.pos, playing: locked ? false : p.playing }

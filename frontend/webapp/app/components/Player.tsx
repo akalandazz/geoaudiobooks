@@ -234,6 +234,8 @@ export function PlayerDesktop() {
   const speeds = [0.8, 1, 1.25, 1.5, 1.75, 2]
   const bmCount = app.bookmarks.filter(x => x.bookId === np.bookId).length
   const blocked = !owned && np.chapter >= SAMPLE_CH
+  const hasPrev = np.chapter > 0
+  const hasNext = np.chapter < chapters.length - 1 && (owned || np.chapter + 1 < SAMPLE_CH)
   return (
     <div className="ge-playerin" style={{
       position: 'absolute', inset: 0, zIndex: 50, fontFamily: T.body, color: T.text, overflow: 'hidden',
@@ -339,11 +341,11 @@ export function PlayerDesktop() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 30, marginTop: 24 }}>
               <SpeedMenu speeds={speeds} value={np.speed} onPick={app.setSpeed} />
-              <IconBtn size={44} className="ge-nudge-l" onClick={() => app.skipChapter(-1)}><GEIcon.prev s={26} /></IconBtn>
+              <IconBtn size={44} className="ge-nudge-l" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={26} /></IconBtn>
               <IconBtn size={48} className="ge-nudge-l" onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
               <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={76} />
               <IconBtn size={48} className="ge-nudge-r" onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
-              <IconBtn size={44} className="ge-nudge-r" onClick={() => app.skipChapter(1)}><GEIcon.next s={26} /></IconBtn>
+              <IconBtn size={44} className="ge-nudge-r" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={26} /></IconBtn>
               <SleepControl size={44} dir="up" iconSize={24} />
             </div>
           </>
@@ -431,6 +433,8 @@ export function PlayerMobile() {
   const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
   const coverW = Math.min(330, app.w - 60)
   const blocked = !owned && np.chapter >= SAMPLE_CH
+  const hasPrev = np.chapter > 0
+  const hasNext = np.chapter < chapters.length - 1 && (owned || np.chapter + 1 < SAMPLE_CH)
   return (
     <div className="ge-playerin" style={{
       position: 'absolute', inset: 0, zIndex: 50, fontFamily: T.body, color: T.text, overflow: 'hidden', display: 'flex', flexDirection: 'column',
@@ -474,11 +478,11 @@ export function PlayerMobile() {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginTop: 22 }}>
+              <IconBtn size={40} className="ge-nudge-l" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={24} /></IconBtn>
               <IconBtn size={46} className="ge-nudge-l" onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
-              <IconBtn size={40} className="ge-nudge-l" onClick={() => app.skipChapter(-1)}><GEIcon.prev s={24} /></IconBtn>
               <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={76} />
-              <IconBtn size={40} className="ge-nudge-r" onClick={() => app.skipChapter(1)}><GEIcon.next s={24} /></IconBtn>
               <IconBtn size={46} className="ge-nudge-r" onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
+              <IconBtn size={40} className="ge-nudge-r" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={24} /></IconBtn>
             </div>
           </>
         )}

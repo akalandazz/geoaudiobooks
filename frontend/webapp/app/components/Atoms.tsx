@@ -49,27 +49,29 @@ export function Btn({ children, kind = 'primary', size = 'md', icon, full, style
 interface IconBtnProps {
   children: React.ReactNode;
   active?: boolean;
+  disabled?: boolean;
   size?: number;
   title?: string;
   className?: string;
   style?: React.CSSProperties;
   onClick?: (e: React.MouseEvent) => void;
 }
-export function IconBtn({ children, active, size = 40, title, className, style, onClick }: IconBtnProps) {
+export function IconBtn({ children, active, disabled, size = 40, title, className, style, onClick }: IconBtnProps) {
   return (
     <button
       onClick={onClick}
       title={title}
+      disabled={disabled}
       className={'ge-tactile' + (className ? ' ' + className : '')}
       style={{
-        width: size, height: size, borderRadius: 99, border: 'none', cursor: 'pointer',
+        width: size, height: size, borderRadius: 99, border: 'none', cursor: disabled ? 'default' : 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: active ? T.accentDim : 'transparent',
         color: active ? T.accent2 : T.mut,
-        flexShrink: 0, ...style,
+        flexShrink: 0, opacity: disabled ? 0.3 : 1, ...style,
       }}
-      onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = T.elev }}
-      onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+      onMouseEnter={(e) => { if (!active && !disabled) (e.currentTarget as HTMLButtonElement).style.background = T.elev }}
+      onMouseLeave={(e) => { if (!active && !disabled) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
     >
       {children}
     </button>

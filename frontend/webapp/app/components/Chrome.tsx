@@ -377,6 +377,8 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   const owned = app.isOwned(b.id)
   const SAMPLE_CH = 1
   const blocked = !owned && np.chapter >= SAMPLE_CH
+  const hasPrev = np.chapter > 0
+  const hasNext = np.chapter < chapters.length - 1 && (owned || np.chapter + 1 < SAMPLE_CH)
   const total = owned ? b.secs : (chapters.length > SAMPLE_CH ? (chapters[SAMPLE_CH]?.start ?? b.secs) : b.secs)
   const ch = chapters[np.chapter] || chapters[0]
   const chapterStart = ch?.start ?? 0
@@ -440,9 +442,9 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
           <IconBtn size={34} className="ge-nudge-l" onClick={() => app.seekRel(-15)}><GEIcon.back15 s={20} /></IconBtn>
-          <IconBtn size={34} className="ge-nudge-l" onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-l" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
           <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={42} variant="light" iconSize={19} />
-          <IconBtn size={34} className="ge-nudge-r" onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-r" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
           <IconBtn size={34} className="ge-nudge-r" onClick={() => app.seekRel(30)}><GEIcon.fwd30 s={20} /></IconBtn>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '74%' }}>
