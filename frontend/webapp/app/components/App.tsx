@@ -31,8 +31,8 @@ function Shell() {
       const el = e.target as HTMLElement
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return
       if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); appRef.current.togglePlay() }
-      else if (e.key === 'ArrowLeft') { e.preventDefault(); appRef.current.seekRel(-15) }
-      else if (e.key === 'ArrowRight') { e.preventDefault(); appRef.current.seekRel(15) }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); appRef.current.seekRel(-10) }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); appRef.current.seekRel(10) }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)

@@ -454,11 +454,11 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
-          <IconBtn size={34} className="ge-nudge-l" aria-label="Rewind 15 seconds" onClick={() => app.seekRel(-15)}><GEIcon.back15 s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-l" aria-label="Rewind 10 seconds" onClick={() => app.seekRel(-10)}><GEIcon.back15 s={20} /></IconBtn>
           <IconBtn size={34} className="ge-nudge-l" aria-label="Previous chapter" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
           <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={42} variant="light" iconSize={19} />
           <IconBtn size={34} className="ge-nudge-r" aria-label="Next chapter" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
-          <IconBtn size={34} className="ge-nudge-r" aria-label="Forward 15 seconds" onClick={() => app.seekRel(15)}><GEIcon.fwd15 s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-r" aria-label="Forward 10 seconds" onClick={() => app.seekRel(10)}><GEIcon.fwd15 s={20} /></IconBtn>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '74%' }}>
           <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(chapterPos)}</span>
