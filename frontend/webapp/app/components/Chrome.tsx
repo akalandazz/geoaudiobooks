@@ -374,6 +374,10 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   const b = app.booksById[np.bookId] || GE_BOOK_BY_ID[np.bookId]
   if (!b) return null
   const chapters = app.chaptersById[np.bookId] || GE_CHAPTERS(b)
+  const owned = app.isOwned(b.id)
+  const SAMPLE_CH = 1
+  const blocked = !owned && np.chapter >= SAMPLE_CH
+  const total = owned ? b.secs : (chapters.length > SAMPLE_CH ? (chapters[SAMPLE_CH]?.start ?? b.secs) : b.secs)
   const ch = chapters[np.chapter] || chapters[0]
   const chapterStart = ch?.start ?? 0
   const chapterLen = ch?.len ?? b.secs
@@ -386,11 +390,17 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
         <BookCover book={b} w={42} radius={7} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 13.5, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
-          <div style={{ fontSize: 11.5, color: T.mut }}>{fmtClock(chapterLen - chapterPos)} left</div>
+          <div style={{ fontSize: 11.5, color: blocked ? T.accent2 : T.mut }}>{blocked ? 'Chapter locked' : (owned ? fmtClock(total - np.pos) + ' left' : 'Sample preview')}</div>
         </div>
-        <IconBtn size={40} onClick={e => { e.stopPropagation(); app.togglePlay() }} style={{ color: T.text }}>
-          {np.playing ? <GEIcon.pause s={22} /> : <GEIcon.play s={22} />}
-        </IconBtn>
+        {blocked ? (
+          <IconBtn size={40} onClick={e => { e.stopPropagation(); app.openPlayer(b.id) }} style={{ color: T.accent2 }}>
+            <GEIcon.lock s={20} />
+          </IconBtn>
+        ) : (
+          <IconBtn size={40} onClick={e => { e.stopPropagation(); app.togglePlay() }} style={{ color: T.text }}>
+            {np.playing ? <GEIcon.pause s={22} /> : <GEIcon.play s={22} />}
+          </IconBtn>
+        )}
         <div style={{ position: 'absolute', left: 0, bottom: 0, height: 2.5, width: pct + '%', background: T.accent2 }} />
       </div>
     )
@@ -401,7 +411,7 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
         <BookCover book={b} w={52} radius={8} />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 14, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
-          <div style={{ fontSize: 12, color: T.mut }}>{b.narrator}</div>
+          <div style={{ fontSize: 12, color: T.mut }}>{blocked ? 'Chapter locked' : (owned ? b.narrator : 'Sample · ' + b.narrator)}</div>
         </div>
         <IconBtn size={32} style={{ color: T.text }} onClick={e => { e.stopPropagation(); app.toggleWishlist(b.id) }}>
           {app.wishlist.includes(b.id) ? <GEIcon.heartFill s={18} style={{ color: T.accent2 }} /> : <GEIcon.heart s={18} />}
@@ -411,9 +421,15 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
           <IconBtn size={34} onClick={() => app.seekRel(-15)}><GEIcon.back15 s={20} /></IconBtn>
           <IconBtn size={34} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
-          <button onClick={() => app.togglePlay()} style={{ width: 42, height: 42, borderRadius: 21, background: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {np.playing ? <GEIcon.pause s={19} style={{ color: '#000' }} /> : <GEIcon.play s={19} style={{ color: '#000' }} />}
-          </button>
+          {blocked ? (
+            <button onClick={() => app.openPlayer(b.id)} title="Chapter locked" style={{ width: 42, height: 42, borderRadius: 21, background: T.accentDim, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <GEIcon.lock s={18} style={{ color: T.accent2 }} />
+            </button>
+          ) : (
+            <button onClick={() => app.togglePlay()} style={{ width: 42, height: 42, borderRadius: 21, background: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {np.playing ? <GEIcon.pause s={19} style={{ color: '#000' }} /> : <GEIcon.play s={19} style={{ color: '#000' }} />}
+            </button>
+          )}
           <IconBtn size={34} onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
           <IconBtn size={34} onClick={() => app.seekRel(30)}><GEIcon.fwd30 s={20} /></IconBtn>
         </div>

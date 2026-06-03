@@ -4,7 +4,7 @@ import React from 'react'
 import { T } from './theme'
 import { AppProvider, useApp } from './AppContext'
 import { Sidebar, BottomNav, TopBar, MobileTop, MiniPlayer } from './Chrome'
-import { PlayerDesktop, PlayerMobile } from './Player'
+import { PlayerDesktop, PlayerMobile, BuyPrompt } from './Player'
 import { Auth } from './Auth'
 import { Home } from './Home'
 import { Search } from './Search'
@@ -64,6 +64,7 @@ function Shell() {
       {app.playerOpen && app.nowPlaying && (
         mobile ? <PlayerMobile /> : <PlayerDesktop />
       )}
+      <BuyPrompt />
     </div>
   )
 }

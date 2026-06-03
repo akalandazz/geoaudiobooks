@@ -85,12 +85,16 @@ export interface AppState {
   signOut: () => void;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   setChapters: (bookId: string, chs: Chapter[]) => void;
+  buyPrompt: string | null;
+  dismissBuyPrompt: () => void;
 }
 
 export const AppCtx = createContext<AppState | null>(null)
 export const useApp = () => useContext(AppCtx)!
 
 const SPEEDS = [0.8, 1, 1.25, 1.5, 1.75, 2]
+const SAMPLE_CH = 1
+const chapterLocked = (i: number, owned: boolean) => !owned && i >= SAMPLE_CH
 const LS_KEY = 'geaudio.state.v1'
 const LS_TOKEN = 'geaudio.token'
 
@@ -138,6 +142,8 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   const [lastOrder, setLastOrder] = useState<string[]>([])
   const [np, setNp] = useState<NowPlaying | null>(saved?.np || null)
   const [playerOpen, setPlayerOpen] = useState(false)
+  const [buyPrompt, setBuyPrompt] = useState<string | null>(null)
+  const samplePrevPlaying = useRef(false)
 
   // Refs for use inside setInterval/debounce closures
   const npRef = useRef(np)
@@ -316,6 +322,21 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     return () => clearInterval(id)
   }, [np?.playing, np?.bookId, np?.speed]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fire buy prompt the instant a free sample finishes
+  useEffect(() => {
+    if (!np) { samplePrevPlaying.current = false; return }
+    const b = booksByIdRef.current[np.bookId] || GE_BOOK_BY_ID[np.bookId]
+    if (!b) return
+    const owned = libraryRef.current.includes(np.bookId)
+    if (owned) { samplePrevPlaying.current = np.playing; return }
+    const chs = chaptersByIdRef.current[np.bookId] || GE_CHAPTERS(b)
+    const limit = chs.length > SAMPLE_CH ? (chs[SAMPLE_CH]?.start ?? b.secs) : b.secs
+    const justEnded = samplePrevPlaying.current && !np.playing
+      && np.pos >= limit - 1 && !chapterLocked(np.chapter, owned)
+    if (justEnded) setBuyPrompt(np.bookId)
+    samplePrevPlaying.current = np.playing
+  }, [np?.playing, np?.pos]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Progress sync to API — every 10 seconds while playing
   useEffect(() => {
     if (!authed) return
@@ -339,6 +360,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     const b = getBook(id)
     if (!b) return
     const chs = getChapters(id)
+    const owned = libraryRef.current.includes(id)
     setNp(p => {
       let pos: number, ch: number
       if (chapter != null) { ch = chapter; pos = chs[chapter]?.start ?? 0 }
@@ -350,7 +372,8 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
         pos = progress[id]; ch = 0
         for (let i = 0; i < chs.length; i++) if (pos >= chs[i].start) ch = i
       } else { pos = 0; ch = 0 }
-      return { bookId: id, chapter: ch, pos, playing: true, speed: p?.speed || 1 }
+      const locked = chapterLocked(ch, owned)
+      return { bookId: id, chapter: ch, pos, playing: !locked, speed: p?.speed || 1 }
     })
   }
 
@@ -367,6 +390,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
 
   const togglePlay = () => setNp(p => {
     if (!p) return p
+    if (chapterLocked(p.chapter, libraryRef.current.includes(p.bookId))) return { ...p, playing: false }
     const willPlay = !p.playing
     if (willPlay) getAudioEngine().play(); else getAudioEngine().pause()
     return { ...p, playing: willPlay }
@@ -402,13 +426,19 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   const skipChapter = (d: number) => setNp(p => {
     if (!p) return p
     const chs = getChapters(p.bookId)
+    const owned = libraryRef.current.includes(p.bookId)
     const ni = Math.max(0, Math.min(chs.length - 1, p.chapter + d))
-    return { ...p, chapter: ni, pos: chs[ni]?.start ?? p.pos }
+    const locked = chapterLocked(ni, owned)
+    if (locked) getAudioEngine().pause()
+    return { ...p, chapter: ni, pos: chs[ni]?.start ?? p.pos, playing: locked ? false : p.playing }
   })
   const goChapter = (i: number) => setNp(p => {
     if (!p) return p
+    const owned = libraryRef.current.includes(p.bookId)
+    const locked = chapterLocked(i, owned)
     const chs = getChapters(p.bookId)
-    return { ...p, chapter: i, pos: chs[i]?.start ?? p.pos, playing: true }
+    if (locked) getAudioEngine().pause()
+    return { ...p, chapter: i, pos: chs[i]?.start ?? p.pos, playing: !locked }
   })
   const setSpeed = (s: number) => {
     getAudioEngine().setRate(s)
@@ -498,9 +528,12 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   }
 
   const buyNow = (id: string) => {
+    setBuyPrompt(null)
     addToCart(id)
     nav('checkout')
   }
+
+  const dismissBuyPrompt = () => setBuyPrompt(null)
 
   const placeOrder = async (): Promise<void> => {
     const order = await Api.checkout()
@@ -575,6 +608,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     cart, addToCart, removeFromCart, inCart, library, isOwned, buyNow, placeOrder, lastOrder,
     wishlist, toggleWishlist, premium, setPremium, search, setSearch,
     progress, continueBooks, signIn, signOut, signUp, setChapters,
+    buyPrompt, dismissBuyPrompt,
   }
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>

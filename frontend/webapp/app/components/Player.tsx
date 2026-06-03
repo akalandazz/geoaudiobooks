@@ -52,6 +52,50 @@ export function useFlash(): [React.ReactNode, (msg: string) => void] {
   return [node, show]
 }
 
+// ── Buy prompt ──
+// Animated overlay that springs up when a free sample ends.
+export function BuyPrompt() {
+  const app = useApp()
+  const id = app.buyPrompt
+  if (!id) return null
+  const b = app.booksById[id] || GE_BOOK_BY_ID[id]
+  if (!b) return null
+  const mobile = app.mobile
+  return (
+    <div className="ge-promptfade" style={{ position: 'absolute', inset: 0, zIndex: 90, display: 'flex',
+      alignItems: mobile ? 'flex-end' : 'center', justifyContent: 'center', padding: mobile ? 0 : 24,
+      background: 'rgba(6,6,12,0.62)', backdropFilter: 'blur(3px)' }}
+      onClick={() => app.dismissBuyPrompt()}>
+      <div className="ge-promptpop" onClick={e => e.stopPropagation()} style={{ width: mobile ? '100%' : 412,
+        maxWidth: '100%', background: T.elev2, border: '1px solid ' + T.line2,
+        borderRadius: mobile ? '22px 22px 0 0' : 20, padding: mobile ? '26px 24px 32px' : 28,
+        boxShadow: '0 30px 90px rgba(0,0,0,0.6)', position: 'relative' }}>
+        <button onClick={() => app.dismissBuyPrompt()} title="Dismiss" style={{ position: 'absolute', top: 16, right: 16,
+          width: 32, height: 32, borderRadius: 99, border: 'none', cursor: 'pointer', background: T.surface, color: T.mut,
+          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <GEIcon.plus s={17} style={{ transform: 'rotate(45deg)' }} />
+        </button>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: T.disp, fontWeight: 700, fontSize: 11.5,
+          letterSpacing: '0.08em', textTransform: 'uppercase', color: T.accent2 }}>
+          <GEIcon.lock s={13} />End of free sample
+        </div>
+        <div style={{ display: 'flex', gap: 16, marginTop: 16, alignItems: 'center' }}>
+          <BookCover book={b} w={84} radius={11} style={{ flexShrink: 0, boxShadow: '0 14px 34px rgba(0,0,0,0.5)' }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 19, letterSpacing: '-0.02em', lineHeight: 1.15, color: T.text }}>{b.title}</div>
+            <div style={{ fontSize: 13.5, color: T.mut, marginTop: 4 }}>{b.author} · {b.narrator}</div>
+            <div style={{ fontSize: 13, color: T.dim, marginTop: 8, lineHeight: 1.5 }}>Loved the preview? Unlock all chapters now.</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+          <Btn kind="primary" full onClick={() => app.buyNow(b.id)}>Buy now · ${b.price}</Btn>
+          <Btn kind="ghost" onClick={() => app.dismissBuyPrompt()} style={{ flexShrink: 0 }}>Maybe later</Btn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Sleep timer control ──
 const SLEEP_OPTS: [string, 'off' | 'chapter' | number][] = [
   ['Off', 'off'], ['15 min', 15], ['30 min', 30], ['45 min', 45], ['1 hour', 60], ['End of chapter', 'chapter'],
@@ -187,9 +231,9 @@ export function PlayerDesktop() {
   const chapterPos = Math.max(0, np.pos - chapterStart)
   const pct = chapterLen > 0 ? (chapterPos / chapterLen) * 100 : 0
   const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
-  const atSampleEnd = !owned && np.pos >= playLen - 1
   const speeds = [0.8, 1, 1.25, 1.5, 1.75, 2]
   const bmCount = app.bookmarks.filter(x => x.bookId === np.bookId).length
+  const blocked = !owned && np.chapter >= SAMPLE_CH
   return (
     <div className="ge-playerin" style={{
       position: 'absolute', inset: 0, zIndex: 50, fontFamily: T.body, color: T.text, overflow: 'hidden',
@@ -218,7 +262,7 @@ export function PlayerDesktop() {
               <div style={{ fontSize: 15, color: T.mut, marginTop: 7 }}>{b.author} · {b.narrator}</div>
             </div>
           </div>
-          {!owned && (
+          {!owned && !blocked && (
             <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: T.surface, border: '1px solid ' + T.line, borderRadius: 14, padding: '14px 16px' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: T.disp, fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.accent2 }}><GEIcon.lock s={14} />Preview</span>
               <span style={{ flex: 1, minWidth: 100, fontSize: 13.5, color: T.mut }}>Free sample · Chapter 1</span>
@@ -258,7 +302,7 @@ export function PlayerDesktop() {
                 const active = c.i === np.chapter
                 const locked = !owned && c.i >= SAMPLE_CH
                 return (
-                  <div key={c.i} onClick={() => locked ? app.buyNow(b.id) : app.goChapter(c.i)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 14px', borderRadius: 11, background: active ? T.elev : 'transparent', cursor: 'pointer', opacity: locked ? 0.5 : 1 }}>
+                  <div key={c.i} onClick={() => app.goChapter(c.i)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 14px', borderRadius: 11, background: active ? T.elev : 'transparent', cursor: 'pointer', opacity: locked ? 0.5 : 1 }}>
                     <span style={{ width: 22, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: active ? T.accent2 : T.dim, fontWeight: 700 }}>{c.i === 0 ? '–' : c.i}</span>
                     {locked
                       ? <GEIcon.lock s={14} style={{ color: T.dim, width: 18 }} />
@@ -282,29 +326,38 @@ export function PlayerDesktop() {
 
       {/* transport */}
       <div style={{ position: 'absolute', left: 44, right: 44, bottom: 40 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ fontSize: 12.5, color: T.mut, fontVariantNumeric: 'tabular-nums', width: 60 }}>{fmt(chapterPos)}</span>
-          <Waveform pct={pct} count={130} onSeek={seekInChapter} />
-          <span style={{ fontSize: 12.5, color: T.mut, fontVariantNumeric: 'tabular-nums', width: 60, textAlign: 'right' }}>{fmt(chapterLen)}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 30, marginTop: 24 }}>
-          <SpeedMenu speeds={speeds} value={np.speed} onPick={app.setSpeed} />
-          <IconBtn size={44} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={26} /></IconBtn>
-          <IconBtn size={48} onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
-          <button onClick={() => app.togglePlay()} style={{ width: 76, height: 76, borderRadius: 38, background: 'linear-gradient(135deg,#A78BFA,#8B5CF6)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 14px 40px rgba(139,92,246,0.55)' }}>
-            {np.playing ? <GEIcon.pause s={30} style={{ color: '#fff' }} /> : <GEIcon.play s={30} style={{ color: '#fff' }} />}
-          </button>
-          <IconBtn size={48} onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
-          <IconBtn size={44} onClick={() => app.skipChapter(1)}><GEIcon.next s={26} /></IconBtn>
-          <SleepControl size={44} dir="up" iconSize={24} />
-        </div>
+        {blocked ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18, background: T.surface, border: '1px solid ' + T.line2, borderRadius: 16, padding: '18px 22px' }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: T.accentDim, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <GEIcon.lock s={22} style={{ color: T.accent2 }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 16, color: T.text }}>{(chapters[np.chapter] || {}).title} is locked</div>
+              <div style={{ fontSize: 13.5, color: T.mut, marginTop: 3 }}>Buy the audiobook to unlock this chapter and keep listening.</div>
+            </div>
+            <Btn kind="primary" onClick={() => app.buyNow(b.id)} style={{ flexShrink: 0 }}>Buy now · ${b.price}</Btn>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span style={{ fontSize: 12.5, color: T.mut, fontVariantNumeric: 'tabular-nums', width: 60 }}>{fmt(chapterPos)}</span>
+              <Waveform pct={pct} count={130} onSeek={seekInChapter} />
+              <span style={{ fontSize: 12.5, color: T.mut, fontVariantNumeric: 'tabular-nums', width: 60, textAlign: 'right' }}>{fmt(chapterLen)}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 30, marginTop: 24 }}>
+              <SpeedMenu speeds={speeds} value={np.speed} onPick={app.setSpeed} />
+              <IconBtn size={44} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={26} /></IconBtn>
+              <IconBtn size={48} onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
+              <button onClick={() => app.togglePlay()} style={{ width: 76, height: 76, borderRadius: 38, background: 'linear-gradient(135deg,#A78BFA,#8B5CF6)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 14px 40px rgba(139,92,246,0.55)' }}>
+                {np.playing ? <GEIcon.pause s={30} style={{ color: '#fff' }} /> : <GEIcon.play s={30} style={{ color: '#fff' }} />}
+              </button>
+              <IconBtn size={48} onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
+              <IconBtn size={44} onClick={() => app.skipChapter(1)}><GEIcon.next s={26} /></IconBtn>
+              <SleepControl size={44} dir="up" iconSize={24} />
+            </div>
+          </>
+        )}
       </div>
-      {atSampleEnd && (
-        <div style={{ position: 'absolute', left: '50%', bottom: 150, transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 14, background: T.elev2, borderRadius: 14, padding: '12px 16px', boxShadow: T.shadow, zIndex: 55, whiteSpace: 'nowrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: T.disp, fontWeight: 700, fontSize: 14, color: T.text }}><GEIcon.lock s={15} style={{ color: T.accent2 }} />End of free sample</span>
-          <Btn kind="primary" size="sm" onClick={() => app.buyNow(b.id)}>Unlock full book · ${b.price}</Btn>
-        </div>
-      )}
       {flash}
     </div>
   )
@@ -348,7 +401,7 @@ function MobileSheet({ bookId, tab, setTab, onClose, owned }: { bookId: string; 
                 const active = np ? c.i === np.chapter : false
                 const locked = !owned && c.i >= SAMPLE_CH
                 return (
-                  <div key={c.i} onClick={() => { if (locked) { app.buyNow(b!.id); } else { app.goChapter(c.i); onClose(); } }}
+                  <div key={c.i} onClick={() => { app.goChapter(c.i); onClose(); }}
                     style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 12px', borderRadius: 11, background: active ? T.elev : 'transparent', cursor: 'pointer', opacity: locked ? 0.5 : 1 }}>
                     <span style={{ width: 20, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: active ? T.accent2 : T.dim, fontWeight: 700 }}>{c.i === 0 ? '–' : c.i}</span>
                     {locked && <GEIcon.lock s={14} style={{ color: T.dim }} />}
@@ -386,6 +439,7 @@ export function PlayerMobile() {
   const pct = chapterLen > 0 ? (chapterPos / chapterLen) * 100 : 0
   const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
   const coverW = Math.min(330, app.w - 60)
+  const blocked = !owned && np.chapter >= SAMPLE_CH
   return (
     <div className="ge-playerin" style={{
       position: 'absolute', inset: 0, zIndex: 50, fontFamily: T.body, color: T.text, overflow: 'hidden', display: 'flex', flexDirection: 'column',
@@ -409,28 +463,43 @@ export function PlayerMobile() {
             <div style={{ fontSize: 14, color: T.mut, marginTop: 5 }}>{ch?.title} · {b.narrator}</div>
           </div>
         </div>
-        {!owned && (
+        {!owned && !blocked && (
           <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '10px 14px' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: T.disp, fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.accent2 }}><GEIcon.lock s={13} />Preview</span>
             <span style={{ flex: 1, fontSize: 12.5, color: 'rgba(255,255,255,0.7)' }}>Free sample</span>
             <Btn kind="light" size="sm" onClick={() => app.buyNow(b.id)}>Buy · ${b.price}</Btn>
           </div>
         )}
-        <div style={{ marginTop: 24 }}>
-          <Waveform pct={pct} count={50} onSeek={seekInChapter} height={34} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: T.mut, fontVariantNumeric: 'tabular-nums', marginTop: 8 }}>
-            <span>{fmt(chapterPos)}</span><span>-{fmt(chapterLen - chapterPos)}</span>
+        {blocked ? (
+          <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(255,255,255,0.06)', borderRadius: 16, padding: '20px 18px', textAlign: 'center' }}>
+            <div style={{ width: 46, height: 46, borderRadius: 12, background: T.accentDim, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' }}>
+              <GEIcon.lock s={21} style={{ color: T.accent2 }} />
+            </div>
+            <div>
+              <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 16, color: T.text }}>{ch?.title} is locked</div>
+              <div style={{ fontSize: 13, color: T.mut, marginTop: 4, lineHeight: 1.45 }}>Buy the audiobook to unlock this chapter.</div>
+            </div>
+            <Btn kind="light" full onClick={() => app.buyNow(b.id)}>Buy now · ${b.price}</Btn>
           </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginTop: 22 }}>
-          <IconBtn size={46} onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
-          <IconBtn size={40} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={24} /></IconBtn>
-          <button onClick={() => app.togglePlay()} style={{ width: 76, height: 76, borderRadius: 38, background: 'linear-gradient(135deg,#A78BFA,#8B5CF6)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 14px 40px rgba(139,92,246,0.55)' }}>
-            {np.playing ? <GEIcon.pause s={30} style={{ color: '#fff' }} /> : <GEIcon.play s={30} style={{ color: '#fff' }} />}
-          </button>
-          <IconBtn size={40} onClick={() => app.skipChapter(1)}><GEIcon.next s={24} /></IconBtn>
-          <IconBtn size={46} onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
-        </div>
+        ) : (
+          <>
+            <div style={{ marginTop: 24 }}>
+              <Waveform pct={pct} count={50} onSeek={seekInChapter} height={34} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: T.mut, fontVariantNumeric: 'tabular-nums', marginTop: 8 }}>
+                <span>{fmt(chapterPos)}</span><span>-{fmt(chapterLen - chapterPos)}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginTop: 22 }}>
+              <IconBtn size={46} onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
+              <IconBtn size={40} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={24} /></IconBtn>
+              <button onClick={() => app.togglePlay()} style={{ width: 76, height: 76, borderRadius: 38, background: 'linear-gradient(135deg,#A78BFA,#8B5CF6)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 14px 40px rgba(139,92,246,0.55)' }}>
+                {np.playing ? <GEIcon.pause s={30} style={{ color: '#fff' }} /> : <GEIcon.play s={30} style={{ color: '#fff' }} />}
+              </button>
+              <IconBtn size={40} onClick={() => app.skipChapter(1)}><GEIcon.next s={24} /></IconBtn>
+              <IconBtn size={46} onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
+            </div>
+          </>
+        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 34px 38px', color: T.mut }}>
         <button onClick={() => app.cycleSpeed()} style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 13, color: T.text, background: 'transparent', border: 'none', cursor: 'pointer' }}>{np.speed}×</button>
