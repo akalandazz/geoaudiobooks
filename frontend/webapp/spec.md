@@ -173,7 +173,6 @@ Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 | `Stars` | `r`, `s` (icon size), `showNum` |
 | `Scrubber` | `pct` 0–100 chapter-relative, `onSeek(pct)` chapter-relative |
 | `Screen` | Scrollable flex-1 + `.ge-scroll` |
-| `PageHead` | Title + optional subtitle |
 
 **`BuyPrompt`** (`Player.tsx`) — animated full-screen overlay (`ge-promptfade` backdrop, `ge-promptpop` card). Renders when `app.buyPrompt !== null`. Shows book cover, title, "Buy now · $price" and "Maybe later". Clicking the backdrop or "Maybe later" calls `dismissBuyPrompt()`. "Buy now" calls `buyNow(id)`. Rendered at the root level in `App.tsx` (same z-index plane as `PlayerDesktop`/`PlayerMobile`).
 
@@ -184,6 +183,8 @@ Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 **Equalizer (`.ge-eq` spans):** Never set inline `height` — overrides animation. Only `width`, `background`, `borderRadius`, `animationDelay`.
 
 **`useFlash`:** `const [node, showFlash] = useFlash()` — toast, auto-dismisses after 1600ms.
+
+**`useClickOutside(ref, onClose, enabled)`** (`Atoms.tsx`) — closes a popover when a `pointerdown` fires outside `ref`. Pass `open` as `enabled` so the listener is only active while the popover is open.
 
 ---
 

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef } from 'react'
+import React, { useRef, useEffect } from 'react'
 import { T } from './theme'
 import { GEIcon } from './Icons'
 
@@ -197,19 +197,18 @@ export function Scrubber({ pct, onSeek, height = 4, glow }: ScrubberProps) {
   )
 }
 
-// ── PageHead ──
-interface PageHeadProps { title: string; sub?: string; mobile?: boolean }
-export function PageHead({ title, sub, mobile }: PageHeadProps) {
-  if (mobile) return (
-    <div style={{ marginBottom: 18 }}>
-      <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 24, color: T.text, letterSpacing: '-0.02em' }}>{title}</span>
-      {sub && <span style={{ fontSize: 14, color: T.mut, marginLeft: 10 }}>{sub}</span>}
-    </div>
-  )
-  return (
-    <div style={{ marginBottom: 26 }}>
-      <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 32, color: T.text, letterSpacing: '-0.02em' }}>{title}</span>
-      {sub && <span style={{ fontSize: 15, color: T.mut, marginLeft: 12 }}>{sub}</span>}
-    </div>
-  )
+// ── useClickOutside ──
+export function useClickOutside(
+  ref: React.RefObject<HTMLElement | null>,
+  onClose: () => void,
+  enabled: boolean,
+) {
+  useEffect(() => {
+    if (!enabled) return
+    const close = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [ref, enabled, onClose])
 }

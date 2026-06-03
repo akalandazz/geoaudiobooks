@@ -4,7 +4,7 @@ import React from 'react'
 import { T } from './theme'
 import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
-import { IconBtn, PlayButton, Scrubber } from './Atoms'
+import { IconBtn, PlayButton, Scrubber, useClickOutside } from './Atoms'
 import { SleepControl } from './Player'
 import { GE_BOOK_BY_ID, GE_BOOKS, GE_CHAPTERS, Book, fmtClock, fmt } from './bookdata'
 import { useApp } from './AppContext'
@@ -158,12 +158,7 @@ export function NotifBell({ size = 40, dropRight = 0 }: { size?: number; dropRig
   const [items, setItems] = React.useState(NOTIF_SEED)
   const ref = React.useRef<HTMLDivElement>(null)
   const unread = items.filter(n => n.unread).length
-  React.useEffect(() => {
-    if (!open) return
-    const close = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    window.addEventListener('pointerdown', close)
-    return () => window.removeEventListener('pointerdown', close)
-  }, [open])
+  useClickOutside(ref, () => setOpen(false), open)
   const markAll = () => setItems(xs => xs.map(n => ({ ...n, unread: false })))
   const onItem = (n: Notif) => {
     setItems(xs => xs.map(x => x.id === n.id ? { ...x, unread: false } : x))
@@ -223,12 +218,7 @@ export function AccountMenu() {
   const app = useApp()
   const [open, setOpen] = React.useState(false)
   const ref = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    if (!open) return
-    const close = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    window.addEventListener('pointerdown', close)
-    return () => window.removeEventListener('pointerdown', close)
-  }, [open])
+  useClickOutside(ref, () => setOpen(false), open)
   const go = (v: string) => { setOpen(false); app.nav(v) }
   const MItem = ({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) => (
     <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', color: danger ? '#FB7185' : T.text, fontFamily: T.body, fontWeight: 600, fontSize: 14, borderRadius: 9, transition: 'background .12s' }}
