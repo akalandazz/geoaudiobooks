@@ -262,13 +262,6 @@ export function PlayerDesktop() {
               <div style={{ fontSize: 15, color: T.mut, marginTop: 7 }}>{b.author} · {b.narrator}</div>
             </div>
           </div>
-          {!owned && !blocked && (
-            <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: T.surface, border: '1px solid ' + T.line, borderRadius: 14, padding: '14px 16px' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: T.disp, fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.accent2 }}><GEIcon.lock s={14} />Preview</span>
-              <span style={{ flex: 1, minWidth: 100, fontSize: 13.5, color: T.mut }}>Free sample · Chapter 1</span>
-              <Btn kind="primary" size="sm" onClick={() => app.buyNow(b.id)}>Buy · ${b.price}</Btn>
-            </div>
-          )}
         </div>
 
         {/* right: chapters / bookmarks panel */}
@@ -463,13 +456,6 @@ export function PlayerMobile() {
             <div style={{ fontSize: 14, color: T.mut, marginTop: 5 }}>{ch?.title} · {b.narrator}</div>
           </div>
         </div>
-        {!owned && !blocked && (
-          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '10px 14px' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: T.disp, fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.accent2 }}><GEIcon.lock s={13} />Preview</span>
-            <span style={{ flex: 1, fontSize: 12.5, color: 'rgba(255,255,255,0.7)' }}>Free sample</span>
-            <Btn kind="light" size="sm" onClick={() => app.buyNow(b.id)}>Buy · ${b.price}</Btn>
-          </div>
-        )}
         {blocked ? (
           <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(255,255,255,0.06)', borderRadius: 16, padding: '20px 18px', textAlign: 'center' }}>
             <div style={{ width: 46, height: 46, borderRadius: 12, background: T.accentDim, display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' }}>
