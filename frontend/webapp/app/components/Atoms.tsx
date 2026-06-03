@@ -51,25 +51,73 @@ interface IconBtnProps {
   active?: boolean;
   size?: number;
   title?: string;
+  className?: string;
   style?: React.CSSProperties;
   onClick?: (e: React.MouseEvent) => void;
 }
-export function IconBtn({ children, active, size = 40, title, style, onClick }: IconBtnProps) {
+export function IconBtn({ children, active, size = 40, title, className, style, onClick }: IconBtnProps) {
   return (
     <button
       onClick={onClick}
       title={title}
+      className={'ge-tactile' + (className ? ' ' + className : '')}
       style={{
         width: size, height: size, borderRadius: 99, border: 'none', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: active ? T.accentDim : 'transparent',
         color: active ? T.accent2 : T.mut,
-        transition: 'background .15s, color .15s', flexShrink: 0, ...style,
+        flexShrink: 0, ...style,
       }}
       onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = T.elev }}
       onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
     >
       {children}
+    </button>
+  )
+}
+
+// ── PlayButton ──
+function hexToRgba(hex: string, a: number) {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
+}
+interface PlayButtonProps {
+  playing: boolean;
+  onClick?: () => void;
+  size?: number;
+  variant?: 'accent' | 'light';
+  iconSize?: number;
+  style?: React.CSSProperties;
+}
+export function PlayButton({ playing, onClick, size = 76, variant = 'accent', iconSize, style }: PlayButtonProps) {
+  const light = variant === 'light'
+  const is = iconSize || Math.round(size * 0.4)
+  const glowColor = hexToRgba(T.accent, 0.55)
+  const ringColor = light ? hexToRgba(T.accent, 0.4) : hexToRgba(T.accent2, 0.6)
+  return (
+    <button
+      onClick={onClick}
+      className="ge-playbtn"
+      data-playing={playing ? 'true' : 'false'}
+      aria-label={playing ? 'Pause' : 'Play'}
+      style={{
+        width: size, height: size, borderRadius: size / 2, border: 'none', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: light ? '#fff' : `linear-gradient(135deg, ${T.accent2}, ${T.accent})`,
+        boxShadow: light ? '0 8px 24px rgba(0,0,0,0.32)' : `0 12px 34px ${glowColor}`,
+        ['--pb-glow' as string]: glowColor,
+        ['--pb-ring' as string]: ringColor,
+        ...style,
+      }}
+    >
+      <span className="ge-sonar" />
+      <span className="ge-sonar s2" />
+      <span key={playing ? 'pause' : 'play'} className="ge-iconpop" style={{ display: 'flex', position: 'relative' }}>
+        {playing
+          ? <GEIcon.pause s={is} style={{ color: light ? '#15101f' : '#fff' }} />
+          : <GEIcon.play  s={is} style={{ color: light ? '#15101f' : '#fff' }} />
+        }
+      </span>
     </button>
   )
 }

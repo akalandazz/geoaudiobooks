@@ -4,7 +4,7 @@ import React from 'react'
 import { T } from './theme'
 import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
-import { IconBtn, Scrubber } from './Atoms'
+import { IconBtn, PlayButton, Scrubber } from './Atoms'
 import { SleepControl } from './Player'
 import { GE_BOOK_BY_ID, GE_BOOKS, GE_CHAPTERS, Book, fmtClock, fmt } from './bookdata'
 import { useApp } from './AppContext'
@@ -439,13 +439,11 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
-          <IconBtn size={34} onClick={() => app.seekRel(-15)}><GEIcon.back15 s={20} /></IconBtn>
-          <IconBtn size={34} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
-          <button onClick={() => app.togglePlay()} style={{ width: 42, height: 42, borderRadius: 21, background: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {np.playing ? <GEIcon.pause s={19} style={{ color: '#000' }} /> : <GEIcon.play s={19} style={{ color: '#000' }} />}
-          </button>
-          <IconBtn size={34} onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
-          <IconBtn size={34} onClick={() => app.seekRel(30)}><GEIcon.fwd30 s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-l" onClick={() => app.seekRel(-15)}><GEIcon.back15 s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-l" onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
+          <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={42} variant="light" iconSize={19} />
+          <IconBtn size={34} className="ge-nudge-r" onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-r" onClick={() => app.seekRel(30)}><GEIcon.fwd30 s={20} /></IconBtn>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '74%' }}>
           <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(chapterPos)}</span>

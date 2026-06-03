@@ -4,7 +4,7 @@ import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { T } from './theme'
 import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
-import { Btn, IconBtn } from './Atoms'
+import { Btn, IconBtn, PlayButton } from './Atoms'
 import { GE_BOOK_BY_ID, GE_CHAPTERS, fmt } from './bookdata'
 import { useApp } from './AppContext'
 
@@ -339,13 +339,11 @@ export function PlayerDesktop() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 30, marginTop: 24 }}>
               <SpeedMenu speeds={speeds} value={np.speed} onPick={app.setSpeed} />
-              <IconBtn size={44} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={26} /></IconBtn>
-              <IconBtn size={48} onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
-              <button onClick={() => app.togglePlay()} style={{ width: 76, height: 76, borderRadius: 38, background: 'linear-gradient(135deg,#A78BFA,#8B5CF6)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 14px 40px rgba(139,92,246,0.55)' }}>
-                {np.playing ? <GEIcon.pause s={30} style={{ color: '#fff' }} /> : <GEIcon.play s={30} style={{ color: '#fff' }} />}
-              </button>
-              <IconBtn size={48} onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
-              <IconBtn size={44} onClick={() => app.skipChapter(1)}><GEIcon.next s={26} /></IconBtn>
+              <IconBtn size={44} className="ge-nudge-l" onClick={() => app.skipChapter(-1)}><GEIcon.prev s={26} /></IconBtn>
+              <IconBtn size={48} className="ge-nudge-l" onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
+              <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={76} />
+              <IconBtn size={48} className="ge-nudge-r" onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
+              <IconBtn size={44} className="ge-nudge-r" onClick={() => app.skipChapter(1)}><GEIcon.next s={26} /></IconBtn>
               <SleepControl size={44} dir="up" iconSize={24} />
             </div>
           </>
@@ -476,13 +474,11 @@ export function PlayerMobile() {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginTop: 22 }}>
-              <IconBtn size={46} onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
-              <IconBtn size={40} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={24} /></IconBtn>
-              <button onClick={() => app.togglePlay()} style={{ width: 76, height: 76, borderRadius: 38, background: 'linear-gradient(135deg,#A78BFA,#8B5CF6)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 14px 40px rgba(139,92,246,0.55)' }}>
-                {np.playing ? <GEIcon.pause s={30} style={{ color: '#fff' }} /> : <GEIcon.play s={30} style={{ color: '#fff' }} />}
-              </button>
-              <IconBtn size={40} onClick={() => app.skipChapter(1)}><GEIcon.next s={24} /></IconBtn>
-              <IconBtn size={46} onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
+              <IconBtn size={46} className="ge-nudge-l" onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
+              <IconBtn size={40} className="ge-nudge-l" onClick={() => app.skipChapter(-1)}><GEIcon.prev s={24} /></IconBtn>
+              <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={76} />
+              <IconBtn size={40} className="ge-nudge-r" onClick={() => app.skipChapter(1)}><GEIcon.next s={24} /></IconBtn>
+              <IconBtn size={46} className="ge-nudge-r" onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
             </div>
           </>
         )}
