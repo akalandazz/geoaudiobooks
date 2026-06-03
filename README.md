@@ -45,6 +45,23 @@ npm run lint      # ESLint
 uvicorn app.main:app --reload   # dev server on :8000
 ```
 
+## E2E Tests
+
+Playwright tests live in `e2e/`. Covers sign-in (happy path + bad credentials).
+
+**Local** — with the stack running:
+```bash
+cd e2e
+npm install
+npx playwright install chromium
+npx playwright test
+```
+
+**Docker** (Linux / CI):
+```bash
+docker compose --profile e2e run --rm e2e
+```
+
 ## Structure
 
 ```
@@ -52,5 +69,6 @@ geoaudiobooks/
 ├── frontend/webapp/   # Next.js SPA
 ├── backend/           # FastAPI app
 │   └── spec.md        # full backend spec
+├── e2e/               # Playwright E2E tests
 └── docker-compose.yml
 ```

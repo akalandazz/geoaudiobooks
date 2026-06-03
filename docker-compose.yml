@@ -72,6 +72,19 @@ services:
     profiles:
       - tools
 
+  e2e:
+    build: ./e2e
+    command: npx playwright test --reporter=line
+    network_mode: host
+    environment:
+      BASE_URL: http://localhost:3000
+      BACKEND_URL: http://localhost:8000
+    depends_on:
+      - frontend
+      - backend
+    profiles:
+      - e2e
+
 volumes:
   pgdata:
   miniodata:
