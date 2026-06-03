@@ -158,7 +158,10 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   useEffect(() => { booksByIdRef.current = booksById }, [booksById])
   const chaptersByIdRef = useRef(chaptersById)
   useEffect(() => { chaptersByIdRef.current = chaptersById }, [chaptersById])
+  const progressRef = useRef(progress)
+  useEffect(() => { progressRef.current = progress }, [progress])
   const hlsActiveRef = useRef(false)
+  const speedRef = useRef<number>(saved?.np?.speed ?? saved?.speed ?? 1)
 
   // Book lookup helpers — fallback to static seed data
   const getBook = (id: string) => booksById[id] || GE_BOOK_BY_ID[id]
@@ -168,11 +171,12 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     return b ? GE_CHAPTERS(b) : []
   }
 
-  // Persist only playback state and progress (user data comes from API)
+  // Persist playback state, speed, and progress (user data comes from API)
   useEffect(() => {
     const data = {
       np: np ? { bookId: np.bookId, chapter: np.chapter, pos: np.pos, speed: np.speed, playing: false } : null,
       progress,
+      speed: speedRef.current,
     }
     try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch { /* ignore */ }
   }, [np, progress])
@@ -377,12 +381,12 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
         if (play && !chapterLocked(p.chapter, owned)) getAudioEngine().play()
         return play ? { ...p, playing: !chapterLocked(p.chapter, owned) } : p
       }
-      else if (progress[id]) {
-        pos = progress[id]; ch = 0
+      else if (progressRef.current[id]) {
+        pos = progressRef.current[id]; ch = 0
         for (let i = 0; i < chs.length; i++) if (pos >= chs[i].start) ch = i
       } else { pos = 0; ch = 0 }
       const locked = chapterLocked(ch, owned)
-      return { bookId: id, chapter: ch, pos, playing: play && !locked, speed: p?.speed || 1 }
+      return { bookId: id, chapter: ch, pos, playing: play && !locked, speed: p?.speed || speedRef.current }
     })
   }
 
@@ -399,7 +403,12 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   const openPlayerAt = (id: string, ch: number) => { startBook(id, ch); setPlayerOpen(true); fetchAndCacheChapters(id) }
   const playBook = (id: string) => { startBook(id, undefined, true); setPlayerOpen(true); fetchAndCacheChapters(id) }
   const closePlayer = () => setPlayerOpen(false)
-  const stopPlayer = () => { getAudioEngine().pause(); setNp(null); setPlayerOpen(false) }
+  const stopPlayer = () => {
+    getAudioEngine().pause()
+    hlsActiveRef.current = false
+    setNp(null)
+    setPlayerOpen(false)
+  }
 
   const togglePlay = () => setNp(p => {
     if (!p) return p
@@ -455,6 +464,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     return { ...p, chapter: i, pos: chs[i]?.start ?? p.pos, playing: !locked }
   })
   const setSpeed = (s: number) => {
+    speedRef.current = s
     getAudioEngine().setRate(s)
     setNp(p => p ? { ...p, speed: s } : p)
   }
@@ -462,6 +472,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     if (!p) return p
     const i = SPEEDS.indexOf(p.speed)
     const s = SPEEDS[(i + 1) % SPEEDS.length]
+    speedRef.current = s
     getAudioEngine().setRate(s)
     return { ...p, speed: s }
   })

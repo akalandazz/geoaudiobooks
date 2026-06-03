@@ -388,7 +388,7 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
   if (mobile) {
     return (
-      <div style={{ flexShrink: 0, margin: '0 8px 4px', background: T.elev, borderRadius: 12, padding: 8, display: 'flex', alignItems: 'center', gap: 11, position: 'relative', overflow: 'hidden' }}>
+      <div role="region" aria-label="Now playing" style={{ flexShrink: 0, margin: '0 8px 4px', background: T.elev, borderRadius: 12, padding: 8, display: 'flex', alignItems: 'center', gap: 11, position: 'relative', overflow: 'hidden' }}>
         <div onClick={() => app.openPlayer(b.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, flex: 1, minWidth: 0, cursor: 'pointer' }}>
           <BookCover book={b} w={42} radius={7} />
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -405,7 +405,7 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
             {np.playing ? <GEIcon.pause s={22} /> : <GEIcon.play s={22} />}
           </IconBtn>
         )}
-        <IconBtn size={36} onClick={e => { e.stopPropagation(); app.stopPlayer() }} style={{ color: T.mut, flexShrink: 0 }}>
+        <IconBtn size={36} onClick={e => { e.stopPropagation(); app.stopPlayer() }} title="Stop and dismiss" aria-label="Stop and dismiss player" style={{ color: T.mut, flexShrink: 0 }}>
           <GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} />
         </IconBtn>
         <div style={{ position: 'absolute', left: 0, bottom: 0, height: 2.5, width: pct + '%', background: T.accent2 }} />
@@ -414,7 +414,7 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   }
   if (blocked) {
     return (
-      <div style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18 }}>
+      <div role="region" aria-label="Now playing" style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18 }}>
         <div onClick={() => app.openPlayer(b.id)} style={{ display: 'flex', alignItems: 'center', gap: 13, width: 270, cursor: 'pointer' }}>
           <BookCover book={b} w={52} radius={8} />
           <div style={{ minWidth: 0 }}>
@@ -429,13 +429,13 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
           <span style={{ fontSize: 13, color: T.mut }}>Purchase to continue listening</span>
         </div>
         <div style={{ width: 200, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-          <IconBtn size={34} onClick={() => app.stopPlayer()} style={{ color: T.mut }}><GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} /></IconBtn>
+          <IconBtn size={34} onClick={() => app.stopPlayer()} title="Stop and dismiss" aria-label="Stop and dismiss player" style={{ color: T.mut }}><GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} /></IconBtn>
         </div>
       </div>
     )
   }
   return (
-    <div style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18 }}>
+    <div role="region" aria-label="Now playing" style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18 }}>
       <div onClick={() => app.openPlayer(b.id)} style={{ display: 'flex', alignItems: 'center', gap: 13, width: 270, cursor: 'pointer' }}>
         <BookCover book={b} w={52} radius={8} />
         <div style={{ minWidth: 0 }}>
@@ -464,7 +464,7 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
         <button onClick={() => app.cycleSpeed()} style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 12.5, border: '1px solid ' + T.line, padding: '5px 9px', borderRadius: 7, background: 'transparent', color: T.text, cursor: 'pointer' }}>{np.speed}×</button>
         <SleepControl size={34} dir="up" iconSize={19} />
         <IconBtn size={34} onClick={() => app.openPlayer(b.id)}><GEIcon.list s={19} /></IconBtn>
-        <IconBtn size={34} onClick={() => app.stopPlayer()}><GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} /></IconBtn>
+        <IconBtn size={34} onClick={() => app.stopPlayer()} title="Stop and dismiss" aria-label="Stop and dismiss player"><GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} /></IconBtn>
       </div>
     </div>
   )
