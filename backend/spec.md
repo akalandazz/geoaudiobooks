@@ -33,8 +33,8 @@ backend/
 │       ├── auth.py        # /auth/signup  /auth/signin  /auth/forgot-password
 │       ├── books.py       # /books  /books/{id}  /books/{id}/chapters
 │       ├── audio.py       # /books/{id}/chapters/{id}/audio   — ownership-gated pre-signed URL (MP3)
-│       │                  # /books/{id}/chapters/{id}/hls      — raw HLS playlist (audio_key must end .m3u8; 404 otherwise)
-│       │                  # /books/{id}/chapters/{id}/hls/{f}  — segment proxy (.ts); avoids MinIO CORS
+│       │                  # /books/{id}/chapters/{id}/hls      — HLS playlist; chapter.idx==0 (sample) skips ownership check; others require ownership
+│       │                  # /books/{id}/chapters/{id}/hls/{f}  — segment proxy (.ts); same ownership rule as playlist
 │       ├── cart.py        # /cart  /cart/{book_id}
 │       ├── orders.py      # /orders/checkout  /orders
 │       ├── library.py     # /library
@@ -75,8 +75,8 @@ All protected routes require `Authorization: Bearer <token>`.
 | GET | /books/{id} | — | |
 | GET | /books/{id}/chapters | — | `ChapterOut` includes `audio_key` (null if no file uploaded) |
 | GET | /books/{id}/chapters/{chapter_id}/audio | ✓ | 403 if book not owned; 404 if no audio_key; returns `{url, expires_in}` pre-signed MinIO URL |
-| GET | /books/{id}/chapters/{chapter_id}/hls | ✓ | 403 if not owned; 404 if audio_key is null or not `.m3u8`; returns raw M3U8 playlist (segment paths are relative filenames — frontend rewrites to absolute proxy URLs) |
-| GET | /books/{id}/chapters/{chapter_id}/hls/{filename} | ✓ | Segment proxy — streams `.ts` file from MinIO; avoids exposing MinIO directly or requiring MinIO CORS config |
+| GET | /books/{id}/chapters/{chapter_id}/hls | ✓ | `chapter.idx == 0` (sample) exempt from ownership check; all others 403 if not owned. 404 if `audio_key` is null or not `.m3u8`; returns raw M3U8 (segment paths are relative — frontend rewrites to absolute proxy URLs) |
+| GET | /books/{id}/chapters/{chapter_id}/hls/{filename} | ✓ | `chapter.idx == 0` exempt from ownership check; all others 403 if not owned. Segment proxy — streams `.ts` from MinIO; avoids CORS |
 | GET | /cart | ✓ | includes total |
 | POST | /cart/{book_id} | ✓ | idempotent |
 | DELETE | /cart/{book_id} | ✓ | |

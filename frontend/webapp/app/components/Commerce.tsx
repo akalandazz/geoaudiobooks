@@ -101,6 +101,16 @@ export function Cart() {
   )
 }
 
+function Field({ label, ph, w, val }: { label: string; ph: string; w?: string; val?: string }) {
+  return (
+    <label style={{ display: 'block', flex: w || '1 1 100%' }}>
+      <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: T.mut, marginBottom: 7, fontFamily: T.body }}>{label}</span>
+      <input defaultValue={val} placeholder={ph} style={{ width: '100%', background: T.bg2, border: '1px solid ' + T.line2, borderRadius: 10, padding: '12px 14px', color: T.text, fontFamily: T.body, fontSize: 14.5, outline: 'none', boxSizing: 'border-box' }}
+        onFocus={e => (e.target.style.borderColor = T.accent)} onBlur={e => (e.target.style.borderColor = T.line2)} />
+    </label>
+  )
+}
+
 // ── CHECKOUT ──
 export function Checkout() {
   const app = useApp()
@@ -121,14 +131,6 @@ export function Checkout() {
       setBusy(false)
     }
   }
-
-  const Field = ({ label, ph, w, val }: { label: string; ph: string; w?: string; val?: string }) => (
-    <label style={{ display: 'block', flex: w || '1 1 100%' }}>
-      <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: T.mut, marginBottom: 7, fontFamily: T.body }}>{label}</span>
-      <input defaultValue={val} placeholder={ph} style={{ width: '100%', background: T.bg2, border: '1px solid ' + T.line2, borderRadius: 10, padding: '12px 14px', color: T.text, fontFamily: T.body, fontSize: 14.5, outline: 'none', boxSizing: 'border-box' }}
-        onFocus={e => (e.target.style.borderColor = T.accent)} onBlur={e => (e.target.style.borderColor = T.line2)} />
-    </label>
-  )
 
   return (
     <Screen style={{ padding: mob ? '4px 20px 20px' : '24px 40px 40px' }}>

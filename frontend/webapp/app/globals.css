@@ -158,6 +158,16 @@ input::placeholder {
 }
 .ge-playerin { animation: ge-playerin .42s cubic-bezier(.22,.61,.36,1) both; }
 
+/* buy prompt animations */
+@keyframes ge-promptfade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ge-promptpop {
+  0%   { opacity: 0; transform: translateY(40px) scale(.94); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ge-promptfade { animation: ge-promptfade .25s ease both; }
+.ge-promptpop  { animation: ge-promptpop .5s cubic-bezier(.34,1.56,.64,1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .ge-neb, .ge-particle,
   .ge-float, .ge-floatB, .ge-floatC, .ge-floatD,

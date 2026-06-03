@@ -7,6 +7,8 @@ from app import storage
 
 router = APIRouter(prefix="/books", tags=["audio"])
 
+SAMPLE_CHAPTER_IDX = 0
+
 
 def _ownership_check(book_id: str, user: models.User, db: Session):
     owned = (
@@ -21,6 +23,23 @@ def _ownership_check(book_id: str, user: models.User, db: Session):
     )
     if not owned:
         raise HTTPException(status_code=403, detail="Book not in library")
+
+
+def _require_ownership_for_non_sample(book_id: str, chapter: models.Chapter, user: models.User, db: Session):
+    """Skip ownership check for the sample chapter (idx 0); enforce it for all others."""
+    if chapter.idx != SAMPLE_CHAPTER_IDX:
+        _ownership_check(book_id, user, db)
+
+
+def _get_chapter(book_id: str, chapter_id: int, db: Session) -> models.Chapter:
+    chapter = (
+        db.query(models.Chapter)
+        .filter(models.Chapter.id == chapter_id, models.Chapter.book_id == book_id)
+        .first()
+    )
+    if not chapter or not chapter.audio_key:
+        raise HTTPException(status_code=404, detail="Audio not available for this chapter")
+    return chapter
 
 
 @router.get("/{book_id}/chapters/{chapter_id}/audio", response_model=schemas.ChapterAudioResponse)
@@ -44,17 +63,6 @@ def get_chapter_audio(
     return {"url": url, "expires_in": 3600}
 
 
-def _get_chapter(book_id: str, chapter_id: int, db: Session) -> models.Chapter:
-    chapter = (
-        db.query(models.Chapter)
-        .filter(models.Chapter.id == chapter_id, models.Chapter.book_id == book_id)
-        .first()
-    )
-    if not chapter or not chapter.audio_key:
-        raise HTTPException(status_code=404, detail="Audio not available for this chapter")
-    return chapter
-
-
 @router.get("/{book_id}/chapters/{chapter_id}/hls")
 def get_chapter_hls(
     book_id: str,
@@ -63,10 +71,11 @@ def get_chapter_hls(
     user: models.User = Depends(get_current_user),
 ):
     """Return the raw HLS playlist. Segment paths are relative filenames — the frontend
-    rewrites them to absolute backend proxy URLs before passing to hls.js."""
-    _ownership_check(book_id, user, db)
+    rewrites them to absolute backend proxy URLs before passing to hls.js.
+    Chapter 0 (sample) is served without ownership check; all others require ownership."""
     chapter = _get_chapter(book_id, chapter_id, db)
-    if not chapter.audio_key or not chapter.audio_key.endswith(".m3u8"):
+    _require_ownership_for_non_sample(book_id, chapter, user, db)
+    if not chapter.audio_key.endswith(".m3u8"):
         raise HTTPException(status_code=404, detail="HLS not available for this chapter")
     try:
         raw = storage.get_hls_playlist_content(chapter.audio_key)
@@ -83,9 +92,10 @@ def get_hls_segment(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    """Proxy a .ts segment from MinIO — avoids any MinIO CORS configuration."""
-    _ownership_check(book_id, user, db)
+    """Proxy a .ts segment from MinIO — avoids any MinIO CORS configuration.
+    Chapter 0 (sample) is served without ownership check; all others require ownership."""
     chapter = _get_chapter(book_id, chapter_id, db)
+    _require_ownership_for_non_sample(book_id, chapter, user, db)
     seg_key = storage.hls_segment_key(book_id, chapter.idx, seg_filename)
     try:
         stream = storage.get_segment_stream(seg_key)

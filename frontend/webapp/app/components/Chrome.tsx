@@ -6,7 +6,7 @@ import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { IconBtn, Scrubber } from './Atoms'
 import { SleepControl } from './Player'
-import { GE_BOOK_BY_ID, GE_BOOKS, Book, fmtClock, fmt } from './bookdata'
+import { GE_BOOK_BY_ID, GE_BOOKS, GE_CHAPTERS, Book, fmtClock, fmt } from './bookdata'
 import { useApp } from './AppContext'
 
 // ── Logo ──
@@ -371,21 +371,57 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   const app = useApp()
   const np = app.nowPlaying
   if (!np) return null
-  const b = GE_BOOK_BY_ID[np.bookId]
+  const b = app.booksById[np.bookId] || GE_BOOK_BY_ID[np.bookId]
   if (!b) return null
-  const pct = (np.pos / b.secs) * 100
+  const chapters = app.chaptersById[np.bookId] || GE_CHAPTERS(b)
+  const owned = app.isOwned(b.id)
+  const SAMPLE_CH = 1
+  const blocked = !owned && np.chapter >= SAMPLE_CH
+  const total = owned ? b.secs : (chapters.length > SAMPLE_CH ? (chapters[SAMPLE_CH]?.start ?? b.secs) : b.secs)
+  const ch = chapters[np.chapter] || chapters[0]
+  const chapterStart = ch?.start ?? 0
+  const chapterLen = ch?.len ?? b.secs
+  const chapterPos = Math.max(0, np.pos - chapterStart)
+  const pct = chapterLen > 0 ? (chapterPos / chapterLen) * 100 : 0
+  const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
   if (mobile) {
     return (
       <div onClick={() => app.openPlayer(b.id)} style={{ flexShrink: 0, margin: '0 8px 4px', background: T.elev, borderRadius: 12, padding: 8, display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', position: 'relative', overflow: 'hidden' }}>
         <BookCover book={b} w={42} radius={7} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 13.5, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
-          <div style={{ fontSize: 11.5, color: T.mut }}>{fmtClock(b.secs - np.pos)} left</div>
+          <div style={{ fontSize: 11.5, color: blocked ? T.accent2 : T.mut }}>{blocked ? 'Chapter locked' : (owned ? fmtClock(total - np.pos) + ' left' : 'Sample preview')}</div>
         </div>
-        <IconBtn size={40} onClick={e => { e.stopPropagation(); app.togglePlay() }} style={{ color: T.text }}>
-          {np.playing ? <GEIcon.pause s={22} /> : <GEIcon.play s={22} />}
-        </IconBtn>
+        {blocked ? (
+          <IconBtn size={40} onClick={e => { e.stopPropagation(); app.openPlayer(b.id) }} style={{ color: T.accent2 }}>
+            <GEIcon.lock s={20} />
+          </IconBtn>
+        ) : (
+          <IconBtn size={40} onClick={e => { e.stopPropagation(); app.togglePlay() }} style={{ color: T.text }}>
+            {np.playing ? <GEIcon.pause s={22} /> : <GEIcon.play s={22} />}
+          </IconBtn>
+        )}
         <div style={{ position: 'absolute', left: 0, bottom: 0, height: 2.5, width: pct + '%', background: T.accent2 }} />
+      </div>
+    )
+  }
+  if (blocked) {
+    return (
+      <div onClick={() => app.openPlayer(b.id)} style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18, cursor: 'pointer' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 13, width: 270 }}>
+          <BookCover book={b} w={52} radius={8} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 14, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
+            <div style={{ fontSize: 12, color: T.accent2 }}>Chapter locked</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 21, background: T.accentDim, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <GEIcon.lock s={18} style={{ color: T.accent2 }} />
+          </div>
+          <span style={{ fontSize: 13, color: T.mut }}>Purchase to continue listening</span>
+        </div>
+        <div style={{ width: 200 }} />
       </div>
     )
   }
@@ -395,9 +431,9 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
         <BookCover book={b} w={52} radius={8} />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 14, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
-          <div style={{ fontSize: 12, color: T.mut }}>{b.narrator}</div>
+          <div style={{ fontSize: 12, color: T.mut }}>{owned ? b.narrator : 'Sample · ' + b.narrator}</div>
         </div>
-        <IconBtn size={32} onClick={e => { e.stopPropagation(); app.toggleWishlist(b.id) }}>
+        <IconBtn size={32} style={{ color: T.text }} onClick={e => { e.stopPropagation(); app.toggleWishlist(b.id) }}>
           {app.wishlist.includes(b.id) ? <GEIcon.heartFill s={18} style={{ color: T.accent2 }} /> : <GEIcon.heart s={18} />}
         </IconBtn>
       </div>
@@ -412,9 +448,9 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
           <IconBtn size={34} onClick={() => app.seekRel(30)}><GEIcon.fwd30 s={20} /></IconBtn>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '74%' }}>
-          <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(np.pos)}</span>
-          <Scrubber pct={pct} onSeek={p => app.seekPct(p)} />
-          <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(b.secs)}</span>
+          <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(chapterPos)}</span>
+          <Scrubber pct={pct} onSeek={seekInChapter} />
+          <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(chapterLen)}</span>
         </div>
       </div>
       <div style={{ width: 200, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, color: T.mut }}>

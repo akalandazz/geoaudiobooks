@@ -7,6 +7,8 @@ import { BookCover } from './BookCover'
 import { Btn, IconBtn, Stars, Screen } from './Atoms'
 import { Row } from './Chrome'
 import { GE_CHAPTERS, fmt, Chapter, Book } from './bookdata'
+
+const SAMPLE_CH = 1
 import { useApp } from './AppContext'
 import * as Api from '../lib/api'
 
@@ -121,18 +123,42 @@ export function Detail() {
             </div>
           )}
           {tab === 'Chapters' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {chapters.map(c => (
-                <div key={c.i} onClick={() => owned ? app.openPlayerAt(b.id, c.i) : app.openPlayer(b.id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', borderRadius: 10, cursor: 'pointer' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = T.surface}
-                  onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}>
-                  <span style={{ width: 22, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: T.dim, fontWeight: 700 }}>{c.i === 0 ? '–' : c.i}</span>
-                  <GEIcon.play s={14} style={{ color: T.mut, width: 16 }} />
-                  <span style={{ flex: 1, fontSize: 14.5, color: T.text, fontWeight: 500 }}>{c.title}</span>
-                  <span style={{ fontSize: 13, color: T.dim, fontVariantNumeric: 'tabular-nums' }}>{fmt(c.len)}</span>
+            <div>
+              {!owned && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: T.surface, border: '1px solid ' + T.line, borderRadius: 14, padding: '16px 18px', marginBottom: 18 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentDim, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <GEIcon.lock s={20} style={{ color: T.accent2 }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 180 }}>
+                    <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 15.5, color: T.text }}>Chapter 1 is a free sample</div>
+                    <div style={{ fontSize: 13.5, color: T.mut, marginTop: 3, lineHeight: 1.5 }}>Buy the audiobook to unlock all {chapters.length} chapters.</div>
+                  </div>
+                  <Btn kind="primary" onClick={() => app.buyNow(b.id)}>Buy now · ${b.price}</Btn>
                 </div>
-              ))}
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {chapters.map(c => {
+                  const locked = !owned && c.i >= SAMPLE_CH
+                  return (
+                    <div key={c.i}
+                      onClick={() => locked ? app.buyNow(b.id) : app.openPlayerAt(b.id, c.i)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', borderRadius: 10, cursor: 'pointer', opacity: locked ? 0.5 : 1 }}
+                      onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = T.surface}
+                      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}>
+                      <span style={{ width: 22, fontVariantNumeric: 'tabular-nums', fontSize: 13, color: T.dim, fontWeight: 700 }}>{c.i === 0 ? '–' : c.i}</span>
+                      {locked
+                        ? <GEIcon.lock s={14} style={{ color: T.dim, width: 16 }} />
+                        : <GEIcon.play s={14} style={{ color: T.mut, width: 16 }} />
+                      }
+                      <span style={{ flex: 1, fontSize: 14.5, color: T.text, fontWeight: 500 }}>{c.title}</span>
+                      {!owned && c.i < SAMPLE_CH && (
+                        <span style={{ fontSize: 11, fontWeight: 700, fontFamily: T.disp, color: T.good, background: 'rgba(52,211,153,0.13)', padding: '2px 9px', borderRadius: 99 }}>Sample</span>
+                      )}
+                      <span style={{ fontSize: 13, color: T.dim, fontVariantNumeric: 'tabular-nums' }}>{fmt(c.len)}</span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
           {tab === 'Reviews' && (
