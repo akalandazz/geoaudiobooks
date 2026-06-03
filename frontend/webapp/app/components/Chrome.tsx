@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useRef } from 'react'
 import { T } from './theme'
 import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
@@ -359,6 +359,7 @@ export function Row({ title, sub, books, progressMap, onShowAll }: { title: stri
 // ── Mini player ──
 export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   const app = useApp()
+  const seekBarRef = useRef<HTMLDivElement>(null)
   const np = app.nowPlaying
   if (!np) return null
   const b = app.booksById[np.bookId] || GE_BOOK_BY_ID[np.bookId]
@@ -387,18 +388,33 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
           </div>
         </div>
         {blocked ? (
-          <IconBtn size={40} onClick={() => app.openPlayer(b.id)} style={{ color: T.accent2 }}>
+          <IconBtn size={40} aria-label="Chapter locked — open player" onClick={() => app.openPlayer(b.id)} style={{ color: T.accent2 }}>
             <GEIcon.lock s={20} />
           </IconBtn>
         ) : (
-          <IconBtn size={40} onClick={e => { e.stopPropagation(); app.togglePlay() }} style={{ color: T.text }}>
+          <IconBtn size={40} aria-label={np.playing ? 'Pause' : 'Play'} onClick={e => { e.stopPropagation(); app.togglePlay() }} style={{ color: T.text }}>
             {np.playing ? <GEIcon.pause s={22} /> : <GEIcon.play s={22} />}
           </IconBtn>
         )}
         <IconBtn size={36} onClick={e => { e.stopPropagation(); app.stopPlayer() }} title="Stop and dismiss" aria-label="Stop and dismiss player" style={{ color: T.mut, flexShrink: 0 }}>
           <GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} />
         </IconBtn>
-        <div style={{ position: 'absolute', left: 0, bottom: 0, height: 2.5, width: pct + '%', background: T.accent2 }} />
+        <div
+          ref={seekBarRef}
+          onPointerDown={(e) => {
+            e.preventDefault(); e.stopPropagation()
+            const r = seekBarRef.current!.getBoundingClientRect()
+            seekInChapter(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * 100)
+            const move = (ev: PointerEvent) => seekInChapter(Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * 100)
+            const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
+            window.addEventListener('pointermove', move); window.addEventListener('pointerup', up)
+          }}
+          style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 12, cursor: 'pointer' }}
+        >
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: 'rgba(255,255,255,0.08)' }}>
+            <div style={{ width: pct + '%', height: '100%', background: T.accent2, borderRadius: 1.5 }} />
+          </div>
+        </div>
       </div>
     )
   }
@@ -438,11 +454,11 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
-          <IconBtn size={34} className="ge-nudge-l" onClick={() => app.seekRel(-15)}><GEIcon.back15 s={20} /></IconBtn>
-          <IconBtn size={34} className="ge-nudge-l" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-l" aria-label="Rewind 15 seconds" onClick={() => app.seekRel(-15)}><GEIcon.back15 s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-l" aria-label="Previous chapter" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
           <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={42} variant="light" iconSize={19} />
-          <IconBtn size={34} className="ge-nudge-r" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
-          <IconBtn size={34} className="ge-nudge-r" onClick={() => app.seekRel(30)}><GEIcon.fwd30 s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-r" aria-label="Next chapter" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-r" aria-label="Forward 15 seconds" onClick={() => app.seekRel(15)}><GEIcon.fwd15 s={20} /></IconBtn>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '74%' }}>
           <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(chapterPos)}</span>

@@ -246,8 +246,9 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       setNp(p => {
         if (!p) return p
         const chs = chaptersByIdRef.current[p.bookId] || GE_CHAPTERS(booksByIdRef.current[p.bookId] || GE_BOOK_BY_ID[p.bookId])
+        const owned = libraryRef.current.includes(p.bookId)
         const ni = p.chapter + 1
-        if (ni >= chs.length) {
+        if (ni >= chs.length || chapterLocked(ni, owned)) {
           getAudioEngine().pause()
           return { ...p, playing: false }
         }

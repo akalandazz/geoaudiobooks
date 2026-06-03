@@ -132,7 +132,13 @@ interface Sleep      { mode: 'time'|'chapter'; minutes?: number; remaining: numb
 
 **Simulated position timer:** 1s interval fallback when `hlsActiveRef.current = false` (locked chapters or HLS unavailable). Advances `pos` by `speed`, updates chapter index. **Does not play real audio.**
 
-**Sample / purchase gating:** `SAMPLE_CH = 1` — chapter index 0 is the free sample; indices ≥ 1 are locked for non-owners. `chapterLocked(i, owned)` returns `true` when the chapter is locked. `togglePlay`, `goChapter`, `skipChapter`, and `startBook` all guard against this: they set/keep `playing: false` when the current chapter is locked (and pause the audio engine). **Sample-end watcher:** fires `buyPrompt = bookId` the instant a non-owner's playback stops at the sample boundary (`np.pos >= sampleEnd - 1`). `BuyPrompt` component reads this and renders the animated overlay.
+**Sample / purchase gating:** `SAMPLE_CH = 1` — chapter index 0 is the free sample; indices ≥ 1 are locked for non-owners. `chapterLocked(i, owned)` returns `true` when the chapter is locked. `togglePlay`, `goChapter`, `skipChapter`, and `startBook` all guard against this: they set/keep `playing: false` when the current chapter is locked (and pause the audio engine).
+
+**`onEnded` behaviour:** when HLS audio finishes, `onEnded` checks whether the next chapter is locked (`chapterLocked(ni, owned)`) before advancing. If the next chapter is locked (or there is no next chapter), playback stops (`playing: false`) and the chapter index does **not** advance — this is what allows the sample-end watcher to fire correctly. If the chapter is accessible, the engine advances normally.
+
+**Sample-end watcher:** fires `buyPrompt = bookId` the instant a non-owner's playback stops at the sample boundary (`np.playing` transitions to `false` while `np.pos >= sampleEnd - 1` and the current chapter is not locked). `BuyPrompt` component reads this and renders the animated overlay. The watcher depends on `onEnded` stopping rather than silently advancing into a locked chapter.
+
+**MiniPlayer seek bars:** both desktop and mobile mini-player progress bars are interactive (pointer-drag to seek). Desktop uses `<Scrubber>`. Mobile uses an absolutely-positioned div (`height:12`, `bottom:0`) with inline pointer-capture logic and a `useRef` — the visual bar is 3px; the extra hit height is transparent. `e.stopPropagation()` prevents the seek tap from also opening the full player.
 
 **MiniPlayer blocked state:** when `chapterLocked(np.chapter, owned)` is true the mini-player (both desktop and mobile) shows a lock `IconBtn` that opens the full player, not the play/pause button.
 
@@ -168,7 +174,7 @@ Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 | Component | Key props |
 |---|---|
 | `Btn` | `kind: 'primary'｜'light'｜'ghost'｜'soft'`, `size: 'sm'｜'md'｜'lg'`, `icon`, `full` |
-| `IconBtn` | `size` px, `active` (accentDim tint) |
+| `IconBtn` | `size` px, `active` (accentDim tint), `aria-label` (string — required on all transport buttons) |
 | `Pill` | `active` inverts colours |
 | `Stars` | `r`, `s` (icon size), `showNum` |
 | `Scrubber` | `pct` 0–100 chapter-relative, `onSeek(pct)` chapter-relative |
@@ -177,6 +183,10 @@ Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 **`BuyPrompt`** (`Player.tsx`) — animated full-screen overlay (`ge-promptfade` backdrop, `ge-promptpop` card). Renders when `app.buyPrompt !== null`. Shows book cover, title, "Buy now · $price" and "Maybe later". Clicking the backdrop or "Maybe later" calls `dismissBuyPrompt()`. "Buy now" calls `buyNow(id)`. Rendered at the root level in `App.tsx` (same z-index plane as `PlayerDesktop`/`PlayerMobile`).
 
 **`SleepControl`** — popover: Off/15/30/45/60min/End of chapter. Expands with countdown when active. `dir="up"|"down"`.
+
+**Transport buttons (all players):** skip uses `seekRel(±15)` — 15 seconds in both directions. Forward icon is `GEIcon.fwd15`. Every `IconBtn` transport control carries an `aria-label` (`"Rewind 15 seconds"`, `"Forward 15 seconds"`, `"Previous chapter"`, `"Next chapter"`). Skip buttons call `.blur()` on their element after the seek so the CSS `:active` ring clears immediately.
+
+**Keyboard shortcuts (desktop):** `Shell` registers a single `keydown` listener (via `appRef` ref, stable across renders). Active only when `nowPlaying !== null` and the focused element is not an `input`, `textarea`, or `contenteditable`. **Space** = play/pause · **←** = rewind 15 s · **→** = forward 15 s.
 
 **`Waveform`** — 130 bars (desktop) / 50 (mobile). Bars left of `pct` = `T.accent2`. Pointer drag supported. `pct` and `onSeek` must be **chapter-relative** (0–100 within the current chapter), not book-relative. Use `seekInChapter` (see pitfalls).
 

@@ -341,11 +341,11 @@ export function PlayerDesktop() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 30, marginTop: 24 }}>
               <SpeedMenu speeds={speeds} value={np.speed} onPick={app.setSpeed} />
-              <IconBtn size={44} className="ge-nudge-l" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={26} /></IconBtn>
-              <IconBtn size={48} className="ge-nudge-l" onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
+              <IconBtn size={44} className="ge-nudge-l" aria-label="Previous chapter" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={26} /></IconBtn>
+              <IconBtn size={48} className="ge-nudge-l" aria-label="Rewind 15 seconds" onClick={(e) => { app.seekRel(-15); (e.currentTarget as HTMLElement).blur() }} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
               <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={76} />
-              <IconBtn size={48} className="ge-nudge-r" onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
-              <IconBtn size={44} className="ge-nudge-r" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={26} /></IconBtn>
+              <IconBtn size={48} className="ge-nudge-r" aria-label="Forward 15 seconds" onClick={(e) => { app.seekRel(15); (e.currentTarget as HTMLElement).blur() }} style={{ color: T.text }}><GEIcon.fwd15 s={30} /></IconBtn>
+              <IconBtn size={44} className="ge-nudge-r" aria-label="Next chapter" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={26} /></IconBtn>
               <SleepControl size={44} dir="up" iconSize={24} />
             </div>
           </>
@@ -478,11 +478,11 @@ export function PlayerMobile() {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginTop: 22 }}>
-              <IconBtn size={40} className="ge-nudge-l" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={24} /></IconBtn>
-              <IconBtn size={46} className="ge-nudge-l" onClick={() => app.seekRel(-15)} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
+              <IconBtn size={40} className="ge-nudge-l" aria-label="Previous chapter" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={24} /></IconBtn>
+              <IconBtn size={46} className="ge-nudge-l" aria-label="Rewind 15 seconds" onClick={(e) => { app.seekRel(-15); (e.currentTarget as HTMLElement).blur() }} style={{ color: T.text }}><GEIcon.back15 s={30} /></IconBtn>
               <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={76} />
-              <IconBtn size={46} className="ge-nudge-r" onClick={() => app.seekRel(30)} style={{ color: T.text }}><GEIcon.fwd30 s={30} /></IconBtn>
-              <IconBtn size={40} className="ge-nudge-r" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={24} /></IconBtn>
+              <IconBtn size={46} className="ge-nudge-r" aria-label="Forward 15 seconds" onClick={(e) => { app.seekRel(15); (e.currentTarget as HTMLElement).blur() }} style={{ color: T.text }}><GEIcon.fwd15 s={30} /></IconBtn>
+              <IconBtn size={40} className="ge-nudge-r" aria-label="Next chapter" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={24} /></IconBtn>
             </div>
           </>
         )}

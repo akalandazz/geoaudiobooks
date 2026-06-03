@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { T } from './theme'
 import { AppProvider, useApp } from './AppContext'
 import { Sidebar, BottomNav, TopBar, MobileTop, MiniPlayer } from './Chrome'
@@ -22,6 +22,21 @@ const SCREENS: Record<string, React.ComponentType> = {
 // ── Main shell ──
 function Shell() {
   const app = useApp()
+  const appRef = useRef(app)
+  useEffect(() => { appRef.current = app })
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!appRef.current.nowPlaying) return
+      const el = e.target as HTMLElement
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return
+      if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); appRef.current.togglePlay() }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); appRef.current.seekRel(-15) }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); appRef.current.seekRel(15) }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
 
   if (app.loading) {
     return <div style={{ position: 'relative', height: '100vh', background: T.bg }} />

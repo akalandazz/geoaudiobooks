@@ -52,15 +52,17 @@ interface IconBtnProps {
   disabled?: boolean;
   size?: number;
   title?: string;
+  'aria-label'?: string;
   className?: string;
   style?: React.CSSProperties;
   onClick?: (e: React.MouseEvent) => void;
 }
-export function IconBtn({ children, active, disabled, size = 40, title, className, style, onClick }: IconBtnProps) {
+export function IconBtn({ children, active, disabled, size = 40, title, 'aria-label': ariaLabel, className, style, onClick }: IconBtnProps) {
   return (
     <button
       onClick={onClick}
       title={title}
+      aria-label={ariaLabel}
       disabled={disabled}
       className={'ge-tactile' + (className ? ' ' + className : '')}
       style={{

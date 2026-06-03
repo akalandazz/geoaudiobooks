@@ -25,7 +25,7 @@ export const GEIcon = {
   play:     SI(<path d="M7 4.5v15l13-7.5-13-7.5Z" />, true),
   pause:    SI(<><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></>, true),
   back15:   SI(<><path d="M11 4 7 8l4 4" /><path d="M7 8h7a5 5 0 1 1-5 5" /></>),
-  fwd30:    SI(<><path d="M13 4l4 4-4 4" /><path d="M17 8h-7a5 5 0 1 0 5 5" /></>),
+  fwd15:    SI(<><path d="M13 4l4 4-4 4" /><path d="M17 8h-7a5 5 0 1 0 5 5" /></>),
   next:     SI(<><path d="M6 5l9 7-9 7Z" fill="currentColor" stroke="none" /><rect x="17" y="5" width="2.2" height="14" rx="1" fill="currentColor" stroke="none" /></>),
   prev:     SI(<><path d="M18 5l-9 7 9 7Z" fill="currentColor" stroke="none" /><rect x="4.8" y="5" width="2.2" height="14" rx="1" fill="currentColor" stroke="none" /></>),
   list:     SI(<><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></>),
