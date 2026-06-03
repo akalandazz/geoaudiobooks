@@ -1,0 +1,35 @@
+id: atomic-habits
+title: "Atomic Habits"
+author: James Clear
+narrator: James Clear
+genre: Self-Development
+year: 2018
+price: 15.99
+rating_avg: 4.8
+reviews_count: 0
+blurb: >
+  A practical guide to building good habits, breaking bad ones,
+  and mastering the tiny behaviors that lead to remarkable results.
+  Learn how small daily improvements compound into long-term success.
+tags:
+  - self-help
+  - productivity
+  - habits
+  - psychology
+  - non-fiction
+
+palette:
+  - "#4F6D7A"
+  - "#C0A062"
+  - "#1F2933"
+
+motif: soft
+
+chapters:
+  - title: "Introduction"
+    length_secs: 73
+    hls_dir: media
+
+  - title: "The Surprising Power of Atomic Habits"
+    length_secs: 73
+    hls_dir: media

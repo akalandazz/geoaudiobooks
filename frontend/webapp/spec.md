@@ -122,9 +122,9 @@ interface Sleep      { mode: 'time'|'chapter'; minutes?: number; remaining: numb
 
 **Playback engine (`app/lib/audioEngine.ts`):** Singleton `AudioEngineImpl` wraps a single `<Audio>` element + hls.js instance. `getAudioEngine()` returns the singleton (SSR-safe stub on server). Interface: `load(m3u8Text, startSecs)`, `play()`, `pause()`, `seek(sec)`, `setRate(rate)`, `onTimeUpdate` / `onEnded` callbacks. Uses hls.js when `Hls.isSupported()` (Chrome/Firefox/desktop Safari); for other browsers, logs a warning — native HLS via blob URL does not work for M3U8.
 
-**HLS load effect:** Fires when `np.bookId`, `np.chapter`, `isCurrentBookOwned` (= `authed && library.includes(np.bookId)`), or `currentChapterDbId` change. Skips if book not owned or chapters not yet loaded (no `dbId`). Calls `getChapterHLS` → `engine.load(m3u8Text)` → `engine.play()` if `np.playing`. Sets `hlsActiveRef.current = true` on success, `false` on failure (error logged to console).
+**HLS load effect:** Fires when `np.bookId`, `np.chapter`, `isCurrentBookOwned`, `isSampleChapter`, or `currentChapterDbId` change. Loads HLS if the book is owned **or** `np.chapter === 0` (the free sample chapter — `isSampleChapter`). Skips if chapters not yet loaded (no `dbId`). Calls `getChapterHLS` → `engine.load(m3u8Text)` → `engine.play()` if `np.playing`. Sets `hlsActiveRef.current = true` on success, `false` on failure (error logged to console).
 
-**Simulated position timer:** 1s interval fallback when `hlsActiveRef.current = false` (preview / HLS unavailable). Advances `pos` by `speed`, updates chapter index. **Does not play real audio.**
+**Simulated position timer:** 1s interval fallback when `hlsActiveRef.current = false` (locked chapters or HLS unavailable). Advances `pos` by `speed`, updates chapter index. **Does not play real audio.**
 
 **Progress sync:** every 10s while playing, `PUT /progress/{bookId}` fires via `setInterval` reading state through refs.
 
@@ -240,7 +240,8 @@ All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
 - **Player stays mounted when closed:** `closePlayer()` hides UI only; playback continues.
 - **`openPlayer` vs `openPlayerAt`:** Both open the player; `openPlayerAt` jumps to a chapter.
 - **BookCover in grid:** Omit `w`, use `style={{ width: '100%', aspectRatio: '1' }}`.
-- **Book lookup:** Always use `app.booksById[id]` — do not import `GE_BOOK_BY_ID` in components. The seed data in `bookdata.ts` is an AppContext-internal fallback only.
+- **Book lookup:** Always use `app.booksById[id]` — do not import `GE_BOOK_BY_ID` in components. The seed data in `bookdata.ts` is an AppContext-internal fallback only. `MiniPlayer` and any other Chrome-level component that reads book data must use `app.booksById[np.bookId] || GE_BOOK_BY_ID[np.bookId]`, same as the full players.
+- **`IconBtn` default color is `T.mut`:** The inactive state renders content in muted gray. Pass `style={{ color: T.text }}` when the icon should be legible regardless of active state (e.g. wishlist heart, where the outline variant must still be clearly visible).
 - **Chapters:** `app.chaptersById[bookId]` may be empty until Detail or Player fetches them; the playback engine falls back to `GE_CHAPTERS` silently.
 - **`signIn` / `placeOrder` throw:** Both are async and reject with `ApiError` on failure. Catch in the calling component and display the error message.
 - **Auth loading:** `app.loading === true` while the JWT is being validated on startup. Shell renders a blank screen during this window — don't add loading spinners elsewhere.
@@ -249,3 +250,4 @@ All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
 - **`NEXT_PUBLIC_API_URL` is baked at build time** — the runtime env var in docker-compose is ignored for client bundles. The fallback `http://localhost:8000` works for local dev. For other environments, pass it as a Docker `ARG` during the build stage.
 - **HLS audio requires chapters loaded from API** — `currentChapterDbId` (needed to call the HLS endpoint) is only present on chapters fetched via `GET /books/{id}/chapters`. `GE_CHAPTERS` fallback chapters have no `dbId`; the HLS load effect skips them.
 - **Segment URLs are proxied through the backend** — `getChapterHLS` rewrites relative `.ts` filenames in the playlist to absolute `http://backend/books/{id}/chapters/{id}/hls/{file}` URLs. hls.js then fetches segments via XHR with the `Authorization` header injected by `xhrSetup`. Never point hls.js directly at MinIO.
+- **Sample chapter (index 0) plays real audio** — the HLS load effect allows `np.chapter === 0` even when the book is not owned. The backend skips ownership check for `chapter.idx == 0`. All other chapters are gated. Do not conflate "not owned" with "no audio" — the sample always has a real HLS stream.

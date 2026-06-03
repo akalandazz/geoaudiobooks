@@ -248,11 +248,15 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load HLS when the book or chapter changes (only for owned books when signed in)
+  // Load HLS when the book or chapter changes.
+  // Chapter 0 (free sample) is always loadable; other chapters require ownership.
+  const SAMPLE_CH_IDX = 0
   const currentChapterDbId = np ? chaptersById[np.bookId]?.[np.chapter]?.dbId : undefined
   const isCurrentBookOwned = authed && np ? library.includes(np.bookId) : false
+  const isSampleChapter = np?.chapter === SAMPLE_CH_IDX
   useEffect(() => {
-    if (!np || !isCurrentBookOwned) return
+    if (!np) return
+    if (!isCurrentBookOwned && !isSampleChapter) return
     if (!currentChapterDbId) return
     const { bookId, chapter } = np
     const chs = chaptersByIdRef.current[bookId]
@@ -270,7 +274,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       hlsActiveRef.current = false
     })
     return () => { cancelled = true }
-  }, [np?.bookId, np?.chapter, isCurrentBookOwned, currentChapterDbId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [np?.bookId, np?.chapter, isCurrentBookOwned, isSampleChapter, currentChapterDbId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sleep countdown — always ticks while playing (regardless of HLS)
   useEffect(() => {
