@@ -365,8 +365,8 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       let pos: number, ch: number
       if (chapter != null) { ch = chapter; pos = chs[chapter]?.start ?? 0 }
       else if (p && p.bookId === id) {
-        getAudioEngine().play()
-        return { ...p, playing: true }
+        if (!chapterLocked(p.chapter, owned)) getAudioEngine().play()
+        return { ...p, playing: !chapterLocked(p.chapter, owned) }
       }
       else if (progress[id]) {
         pos = progress[id]; ch = 0

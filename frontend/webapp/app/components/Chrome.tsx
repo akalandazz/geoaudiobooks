@@ -405,13 +405,33 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
       </div>
     )
   }
+  if (blocked) {
+    return (
+      <div onClick={() => app.openPlayer(b.id)} style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18, cursor: 'pointer' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 13, width: 270 }}>
+          <BookCover book={b} w={52} radius={8} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 14, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
+            <div style={{ fontSize: 12, color: T.accent2 }}>Chapter locked</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 21, background: T.accentDim, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <GEIcon.lock s={18} style={{ color: T.accent2 }} />
+          </div>
+          <span style={{ fontSize: 13, color: T.mut }}>Purchase to continue listening</span>
+        </div>
+        <div style={{ width: 200 }} />
+      </div>
+    )
+  }
   return (
     <div style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18 }}>
       <div onClick={() => app.openPlayer(b.id)} style={{ display: 'flex', alignItems: 'center', gap: 13, width: 270, cursor: 'pointer' }}>
         <BookCover book={b} w={52} radius={8} />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 14, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
-          <div style={{ fontSize: 12, color: T.mut }}>{blocked ? 'Chapter locked' : (owned ? b.narrator : 'Sample · ' + b.narrator)}</div>
+          <div style={{ fontSize: 12, color: T.mut }}>{owned ? b.narrator : 'Sample · ' + b.narrator}</div>
         </div>
         <IconBtn size={32} style={{ color: T.text }} onClick={e => { e.stopPropagation(); app.toggleWishlist(b.id) }}>
           {app.wishlist.includes(b.id) ? <GEIcon.heartFill s={18} style={{ color: T.accent2 }} /> : <GEIcon.heart s={18} />}
@@ -421,15 +441,9 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
           <IconBtn size={34} onClick={() => app.seekRel(-15)}><GEIcon.back15 s={20} /></IconBtn>
           <IconBtn size={34} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
-          {blocked ? (
-            <button onClick={() => app.openPlayer(b.id)} title="Chapter locked" style={{ width: 42, height: 42, borderRadius: 21, background: T.accentDim, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <GEIcon.lock s={18} style={{ color: T.accent2 }} />
-            </button>
-          ) : (
-            <button onClick={() => app.togglePlay()} style={{ width: 42, height: 42, borderRadius: 21, background: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {np.playing ? <GEIcon.pause s={19} style={{ color: '#000' }} /> : <GEIcon.play s={19} style={{ color: '#000' }} />}
-            </button>
-          )}
+          <button onClick={() => app.togglePlay()} style={{ width: 42, height: 42, borderRadius: 21, background: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {np.playing ? <GEIcon.pause s={19} style={{ color: '#000' }} /> : <GEIcon.play s={19} style={{ color: '#000' }} />}
+          </button>
           <IconBtn size={34} onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
           <IconBtn size={34} onClick={() => app.seekRel(30)}><GEIcon.fwd30 s={20} /></IconBtn>
         </div>
