@@ -371,7 +371,7 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   const app = useApp()
   const np = app.nowPlaying
   if (!np) return null
-  const b = GE_BOOK_BY_ID[np.bookId]
+  const b = app.booksById[np.bookId] || GE_BOOK_BY_ID[np.bookId]
   if (!b) return null
   const pct = (np.pos / b.secs) * 100
   if (mobile) {
@@ -397,7 +397,7 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
           <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 14, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
           <div style={{ fontSize: 12, color: T.mut }}>{b.narrator}</div>
         </div>
-        <IconBtn size={32} onClick={e => { e.stopPropagation(); app.toggleWishlist(b.id) }}>
+        <IconBtn size={32} style={{ color: T.text }} onClick={e => { e.stopPropagation(); app.toggleWishlist(b.id) }}>
           {app.wishlist.includes(b.id) ? <GEIcon.heartFill s={18} style={{ color: T.accent2 }} /> : <GEIcon.heart s={18} />}
         </IconBtn>
       </div>
