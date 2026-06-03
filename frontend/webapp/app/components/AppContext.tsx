@@ -48,7 +48,9 @@ export interface AppState {
   nowPlaying: NowPlaying | null;
   openPlayer: (id: string) => void;
   openPlayerAt: (id: string, ch: number) => void;
+  playBook: (id: string) => void;
   closePlayer: () => void;
+  stopPlayer: () => void;
   playerOpen: boolean;
   togglePlay: () => void;
   seekRel: (s: number) => void;
@@ -363,7 +365,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   })
   const openDetail = (id: string) => { setBookId(id); nav('detail') }
 
-  const startBook = (id: string, chapter?: number) => {
+  const startBook = (id: string, chapter?: number, play = true) => {
     const b = getBook(id)
     if (!b) return
     const chs = getChapters(id)
@@ -372,15 +374,15 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       let pos: number, ch: number
       if (chapter != null) { ch = chapter; pos = chs[chapter]?.start ?? 0 }
       else if (p && p.bookId === id) {
-        if (!chapterLocked(p.chapter, owned)) getAudioEngine().play()
-        return { ...p, playing: !chapterLocked(p.chapter, owned) }
+        if (play && !chapterLocked(p.chapter, owned)) getAudioEngine().play()
+        return play ? { ...p, playing: !chapterLocked(p.chapter, owned) } : p
       }
       else if (progress[id]) {
         pos = progress[id]; ch = 0
         for (let i = 0; i < chs.length; i++) if (pos >= chs[i].start) ch = i
       } else { pos = 0; ch = 0 }
       const locked = chapterLocked(ch, owned)
-      return { bookId: id, chapter: ch, pos, playing: !locked, speed: p?.speed || 1 }
+      return { bookId: id, chapter: ch, pos, playing: play && !locked, speed: p?.speed || 1 }
     })
   }
 
@@ -393,9 +395,11 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     }).catch(() => {})
   }
 
-  const openPlayer = (id: string) => { startBook(id); setPlayerOpen(true); fetchAndCacheChapters(id) }
+  const openPlayer = (id: string) => { startBook(id, undefined, false); setPlayerOpen(true); fetchAndCacheChapters(id) }
   const openPlayerAt = (id: string, ch: number) => { startBook(id, ch); setPlayerOpen(true); fetchAndCacheChapters(id) }
+  const playBook = (id: string) => { startBook(id, undefined, true); setPlayerOpen(true); fetchAndCacheChapters(id) }
   const closePlayer = () => setPlayerOpen(false)
+  const stopPlayer = () => { getAudioEngine().pause(); setNp(null); setPlayerOpen(false) }
 
   const togglePlay = () => setNp(p => {
     if (!p) return p
@@ -611,7 +615,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
 
   const value: AppState = {
     mobile, w, authed, loading, user, booksById: allBooks, chaptersById, view, bookId, nav, back, openDetail,
-    nowPlaying: np, openPlayer, openPlayerAt, closePlayer, playerOpen,
+    nowPlaying: np, openPlayer, openPlayerAt, playBook, closePlayer, stopPlayer, playerOpen,
     togglePlay, seekRel, seekPct, skipChapter, goChapter, setSpeed, cycleSpeed,
     bookmarks, addBookmark, removeBookmark, goBookmark,
     sleep, setSleepTimer, cancelSleep,

@@ -327,7 +327,7 @@ export function BookCard({ b, w = 158, progress, onClick }: { b: Book; w?: numbe
     <div style={{ width: w, flexShrink: 0, cursor: 'pointer' }} onClick={go} className="ge-card">
       <div style={{ position: 'relative' }}>
         <BookCover book={b} w={typeof w === 'number' ? w : undefined} radius={12} style={typeof w === 'string' ? { width: '100%', aspectRatio: '1', height: 'auto' } : undefined} />
-        <button onClick={e => { e.stopPropagation(); app.openPlayer(b.id) }}
+        <button onClick={e => { e.stopPropagation(); app.playBook(b.id) }}
           className="ge-cardplay"
           style={{ position: 'absolute', right: 8, bottom: 8, width: 40, height: 40, borderRadius: 20, background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 16px rgba(139,92,246,0.5)', border: 'none', cursor: 'pointer', opacity: 0, transform: 'translateY(6px)', transition: 'all .18s' }}>
           <GEIcon.play s={16} style={{ color: '#fff' }} />
@@ -388,14 +388,16 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
   if (mobile) {
     return (
-      <div onClick={() => app.openPlayer(b.id)} style={{ flexShrink: 0, margin: '0 8px 4px', background: T.elev, borderRadius: 12, padding: 8, display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', position: 'relative', overflow: 'hidden' }}>
-        <BookCover book={b} w={42} radius={7} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 13.5, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
-          <div style={{ fontSize: 11.5, color: blocked ? T.accent2 : T.mut }}>{blocked ? 'Chapter locked' : (owned ? fmtClock(total - np.pos) + ' left' : 'Sample preview')}</div>
+      <div style={{ flexShrink: 0, margin: '0 8px 4px', background: T.elev, borderRadius: 12, padding: 8, display: 'flex', alignItems: 'center', gap: 11, position: 'relative', overflow: 'hidden' }}>
+        <div onClick={() => app.openPlayer(b.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+          <BookCover book={b} w={42} radius={7} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 13.5, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
+            <div style={{ fontSize: 11.5, color: blocked ? T.accent2 : T.mut }}>{blocked ? 'Chapter locked' : (owned ? fmtClock(total - np.pos) + ' left' : 'Sample preview')}</div>
+          </div>
         </div>
         {blocked ? (
-          <IconBtn size={40} onClick={e => { e.stopPropagation(); app.openPlayer(b.id) }} style={{ color: T.accent2 }}>
+          <IconBtn size={40} onClick={() => app.openPlayer(b.id)} style={{ color: T.accent2 }}>
             <GEIcon.lock s={20} />
           </IconBtn>
         ) : (
@@ -403,14 +405,17 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
             {np.playing ? <GEIcon.pause s={22} /> : <GEIcon.play s={22} />}
           </IconBtn>
         )}
+        <IconBtn size={36} onClick={e => { e.stopPropagation(); app.stopPlayer() }} style={{ color: T.mut, flexShrink: 0 }}>
+          <GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} />
+        </IconBtn>
         <div style={{ position: 'absolute', left: 0, bottom: 0, height: 2.5, width: pct + '%', background: T.accent2 }} />
       </div>
     )
   }
   if (blocked) {
     return (
-      <div onClick={() => app.openPlayer(b.id)} style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18, cursor: 'pointer' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 13, width: 270 }}>
+      <div style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18 }}>
+        <div onClick={() => app.openPlayer(b.id)} style={{ display: 'flex', alignItems: 'center', gap: 13, width: 270, cursor: 'pointer' }}>
           <BookCover book={b} w={52} radius={8} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 14, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
@@ -423,7 +428,9 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
           </div>
           <span style={{ fontSize: 13, color: T.mut }}>Purchase to continue listening</span>
         </div>
-        <div style={{ width: 200 }} />
+        <div style={{ width: 200, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <IconBtn size={34} onClick={() => app.stopPlayer()} style={{ color: T.mut }}><GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} /></IconBtn>
+        </div>
       </div>
     )
   }
@@ -457,6 +464,7 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
         <button onClick={() => app.cycleSpeed()} style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 12.5, border: '1px solid ' + T.line, padding: '5px 9px', borderRadius: 7, background: 'transparent', color: T.text, cursor: 'pointer' }}>{np.speed}×</button>
         <SleepControl size={34} dir="up" iconSize={19} />
         <IconBtn size={34} onClick={() => app.openPlayer(b.id)}><GEIcon.list s={19} /></IconBtn>
+        <IconBtn size={34} onClick={() => app.stopPlayer()}><GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} /></IconBtn>
       </div>
     </div>
   )
