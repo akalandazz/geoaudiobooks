@@ -161,13 +161,13 @@ Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 | `IconBtn` | `size` px, `active` (accentDim tint) |
 | `Pill` | `active` inverts colours |
 | `Stars` | `r`, `s` (icon size), `showNum` |
-| `Scrubber` | `pct` 0–100, `onSeek(pct)` |
+| `Scrubber` | `pct` 0–100 chapter-relative, `onSeek(pct)` chapter-relative |
 | `Screen` | Scrollable flex-1 + `.ge-scroll` |
 | `PageHead` | Title + optional subtitle |
 
 **`SleepControl`** — popover: Off/15/30/45/60min/End of chapter. Expands with countdown when active. `dir="up"|"down"`.
 
-**`Waveform`** — 130 bars (desktop) / 50 (mobile). Bars left of `pct` = `T.accent2`. Pointer drag supported.
+**`Waveform`** — 130 bars (desktop) / 50 (mobile). Bars left of `pct` = `T.accent2`. Pointer drag supported. `pct` and `onSeek` must be **chapter-relative** (0–100 within the current chapter), not book-relative. Use `seekInChapter` (see pitfalls).
 
 **Equalizer (`.ge-eq` spans):** Never set inline `height` — overrides animation. Only `width`, `background`, `borderRadius`, `animationDelay`.
 
@@ -245,6 +245,16 @@ All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
 - **Chapters:** `app.chaptersById[bookId]` may be empty until Detail or Player fetches them; the playback engine falls back to `GE_CHAPTERS` silently.
 - **`signIn` / `placeOrder` throw:** Both are async and reject with `ApiError` on failure. Catch in the calling component and display the error message.
 - **Auth loading:** `app.loading === true` while the JWT is being validated on startup. Shell renders a blank screen during this window — don't add loading spinners elsewhere.
+- **Progress bars are chapter-relative:** `np.pos` is an absolute book position (seconds from book start). The Waveform/Scrubber in PlayerDesktop, PlayerMobile, and MiniPlayer all show progress within the **current chapter**, not the whole book. The pattern is:
+  ```ts
+  const ch = chapters[np.chapter] || chapters[0]
+  const chapterStart = ch?.start ?? 0
+  const chapterLen = ch?.len ?? fallbackLen
+  const chapterPos = Math.max(0, np.pos - chapterStart)
+  const pct = chapterLen > 0 ? (chapterPos / chapterLen) * 100 : 0
+  const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
+  ```
+  Time labels show `fmt(chapterPos)` / `fmt(chapterLen)`. Never pass raw `np.pos / b.secs` to Waveform or Scrubber.
 - **No components defined inside components:** Defining a component inside another component's function body gives it a new reference on every render. React treats it as a different type, unmounts the old node, and mounts a fresh one — inputs lose focus after each keystroke. Always define helper components at module scope.
 - **Frontend has no hot-reload volume mount** — unlike the backend, source changes require `docker compose build frontend && docker compose up -d frontend`. Failing to rebuild after adding packages (e.g. `hls.js`) means the module is silently absent and audio falls back to simulation.
 - **`NEXT_PUBLIC_API_URL` is baked at build time** — the runtime env var in docker-compose is ignored for client bundles. The fallback `http://localhost:8000` works for local dev. For other environments, pass it as a Docker `ARG` during the build stage.
