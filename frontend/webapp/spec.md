@@ -61,7 +61,8 @@ Typed fetch wrapper around the FastAPI backend (`NEXT_PUBLIC_API_URL`, default `
 - `ApiError` — thrown on non-2xx; has `.status: number`
 - `ChapterOut` includes `audio_key: string | null` — null until audio uploaded; `.mp3` for MP3, `.m3u8` path for HLS
 - `getChapterHLS(bookId, chapterId)` — fetches the HLS playlist and **rewrites relative segment filenames to absolute backend proxy URLs** (`/books/{id}/chapters/{id}/hls/{file}`) before returning the M3U8 text; `chapterId` is the chapter DB primary key (`dbId`)
-- One exported function per endpoint: `signIn`, `signUp`, `getMe`, `updateMe`, `getBooks`, `getChapters`, `getChapterAudio(bookId, chapterId)`, `getChapterHLS(bookId, chapterId)`, `getCart`, `addToCart`, `removeFromCart`, `checkout`, `getLibrary`, `getProgress`, `updateProgress`, `getBookmarks`, `addBookmark`, `deleteBookmark`, `getWishlist`, `addToWishlist`, `removeFromWishlist`
+- One exported function per endpoint: `signIn`, `signUp`, `getMe`, `updateMe`, `getBooks`, `getChapters`, `getChapterAudio(bookId, chapterId)`, `getChapterHLS(bookId, chapterId)`, `getCart`, `addToCart`, `removeFromCart`, `checkout`, `getLibrary`, `getProgress`, `updateProgress`, `getBookmarks`, `addBookmark`, `deleteBookmark`, `getWishlist`, `addToWishlist`, `removeFromWishlist`, `getNotifications(limit?)`, `getUnreadCount()`, `markNotificationRead(id)`, `markAllNotificationsRead()`
+- `NotificationOut` — `{ id, type, title, body, book_id: string|null, is_read: boolean, created_at: string }`
 
 ---
 
@@ -99,6 +100,11 @@ inCart(id): boolean; isOwned(id): boolean
 buyPrompt: string | null        // bookId of the "buy now" overlay; null when dismissed
 dismissBuyPrompt(): void
 
+// Notifications
+notifications: NotificationOut[]
+markNotifRead(id): void         // optimistic is_read=true + API call
+markAllNotifsRead(): void       // optimistic all is_read=true + API call
+
 // Playback
 nowPlaying: NowPlaying | null; playerOpen: boolean
 openPlayer(id): void; openPlayerAt(id, chapter): void; closePlayer(): void
@@ -120,17 +126,27 @@ interface Bookmark   { id: string; bookId: string; chapter: number; pos: number;
 interface Sleep      { mode: 'time'|'chapter'; minutes?: number; remaining: number; total: number }
 ```
 
-**Init flow:** On mount — fetches `GET /books?limit=100`; if `localStorage 'geaudio.token'` exists, calls `GET /users/me` then loads cart/library/wishlist/bookmarks/progress in parallel. `loading: true` until complete (Shell shows blank dark screen to prevent auth flash).
+**Init flow:** On mount — fetches `GET /books?limit=100`; if `localStorage 'geaudio.token'` exists, calls `GET /users/me` then loads cart/library/wishlist/bookmarks/progress/**notifications** in parallel. `loading: true` until complete.
+
+**Notification poll:** `setInterval` every 15s while `authed`; cleared on sign-out. `NotifBell` (`Chrome.tsx`) reads `app.notifications` directly — no local state. Bell badge = `notifications.filter(n => !n.is_read).length`. Clicking an item calls `markNotifRead` then deep-links via `book_id → openDetail` or `nav('settings')`.
 
 **Persistence (`localStorage 'geaudio.state.v1'`):** Only `nowPlaying` (with `playing:false`) and `progress`. Cart/library/wishlist/bookmarks are backend-authoritative. JWT stored separately under `'geaudio.token'`.
 
-**Playback engine (`app/lib/audioEngine.ts`):** Singleton `AudioEngineImpl` wraps a single `<Audio>` element + hls.js instance. `getAudioEngine()` returns the singleton (SSR-safe stub on server). Interface: `load(m3u8Text, startSecs)`, `play()`, `pause()`, `seek(sec)`, `setRate(rate)`, `onTimeUpdate` / `onEnded` callbacks. Uses hls.js when `Hls.isSupported()` (Chrome/Firefox/desktop Safari); for other browsers, logs a warning — native HLS via blob URL does not work for M3U8.
+**Playback engine (`app/lib/audioEngine.ts`):** Singleton `AudioEngineImpl` wraps a single `<Audio>` element + hls.js instance. `getAudioEngine()` returns the singleton (SSR-safe stub on server). Interface: `load(m3u8Text, startSecs)`, `play()`, `pause()`, `seek(sec)`, `setRate(rate)`, `onTimeUpdate` / `onEnded` callbacks. Uses hls.js when `Hls.isSupported()` (Chrome/Firefox/desktop Safari); for other browsers, logs a warning — native HLS via blob URL does not work for M3U8. **`play()` is deferred until after `MANIFEST_PARSED`** — the engine tracks `loaded` and `pendingPlay` flags; calling `play()` before the manifest fires queues it and fires inside the `MANIFEST_PARSED` (or `canplay` for native) handler. `pause()` cancels a pending play.
+
+**Chapter auto-fetch effect:** Fires when `np?.bookId` changes. If `chaptersById[bookId]` is empty, calls `fetchAndCacheChapters`. This ensures chapters (and their `dbId` values) are always loaded whenever `nowPlaying` is set — including restores from localStorage and MiniPlayer interactions that never call `openPlayer`. `fetchAndCacheChapters` is a `const` arrow function and therefore not hoisted — it must be declared **above** the effect that calls it inside `AppProvider`.
 
 **HLS load effect:** Fires when `np.bookId`, `np.chapter`, `isCurrentBookOwned`, `isSampleChapter`, or `currentChapterDbId` change. Loads HLS if the book is owned **or** `np.chapter === 0` (the free sample chapter — `isSampleChapter`). Skips if chapters not yet loaded (no `dbId`). Calls `getChapterHLS` → `engine.load(m3u8Text)` → `engine.play()` if `np.playing`. Sets `hlsActiveRef.current = true` on success, `false` on failure (error logged to console).
 
 **Simulated position timer:** 1s interval fallback when `hlsActiveRef.current = false` (locked chapters or HLS unavailable). Advances `pos` by `speed`, updates chapter index. **Does not play real audio.**
 
-**Sample / purchase gating:** `SAMPLE_CH = 1` — chapter index 0 is the free sample; indices ≥ 1 are locked for non-owners. `chapterLocked(i, owned)` returns `true` when the chapter is locked. `togglePlay`, `goChapter`, `skipChapter`, and `startBook` all guard against this: they set/keep `playing: false` when the current chapter is locked (and pause the audio engine). **Sample-end watcher:** fires `buyPrompt = bookId` the instant a non-owner's playback stops at the sample boundary (`np.pos >= sampleEnd - 1`). `BuyPrompt` component reads this and renders the animated overlay.
+**Sample / purchase gating:** `SAMPLE_CH = 1` — chapter index 0 is the free sample; indices ≥ 1 are locked for non-owners. `chapterLocked(i, owned)` returns `true` when the chapter is locked. `togglePlay`, `goChapter`, `skipChapter`, and `startBook` all guard against this: they set/keep `playing: false` when the current chapter is locked (and pause the audio engine).
+
+**`onEnded` behaviour:** when HLS audio finishes, `onEnded` checks whether the next chapter is locked (`chapterLocked(ni, owned)`) before advancing. If the next chapter is locked (or there is no next chapter), playback stops (`playing: false`) and the chapter index does **not** advance — this is what allows the sample-end watcher to fire correctly. If the chapter is accessible, the engine advances normally.
+
+**Sample-end watcher:** fires `buyPrompt = bookId` the instant a non-owner's playback stops at the sample boundary (`np.playing` transitions to `false` while `np.pos >= sampleEnd - 1` and the current chapter is not locked). `BuyPrompt` component reads this and renders the animated overlay. The watcher depends on `onEnded` stopping rather than silently advancing into a locked chapter.
+
+**MiniPlayer seek bars:** both desktop and mobile mini-player progress bars are interactive (pointer-drag to seek). Desktop uses `<Scrubber>`. Mobile uses an absolutely-positioned div (`height:12`, `bottom:0`) with inline pointer-capture logic and a `useRef` — the visual bar is 3px; the extra hit height is transparent. `e.stopPropagation()` prevents the seek tap from also opening the full player.
 
 **MiniPlayer blocked state:** when `chapterLocked(np.chapter, owned)` is true the mini-player (both desktop and mobile) shows a lock `IconBtn` that opens the full player, not the play/pause button.
 
@@ -166,22 +182,27 @@ Breakpoint: `window.innerWidth < 760` → `mobile: true` via `useResponsive()`.
 | Component | Key props |
 |---|---|
 | `Btn` | `kind: 'primary'｜'light'｜'ghost'｜'soft'`, `size: 'sm'｜'md'｜'lg'`, `icon`, `full` |
-| `IconBtn` | `size` px, `active` (accentDim tint) |
+| `IconBtn` | `size` px, `active` (accentDim tint), `aria-label` (string — required on all transport buttons) |
 | `Pill` | `active` inverts colours |
 | `Stars` | `r`, `s` (icon size), `showNum` |
 | `Scrubber` | `pct` 0–100 chapter-relative, `onSeek(pct)` chapter-relative |
 | `Screen` | Scrollable flex-1 + `.ge-scroll` |
-| `PageHead` | Title + optional subtitle |
 
 **`BuyPrompt`** (`Player.tsx`) — animated full-screen overlay (`ge-promptfade` backdrop, `ge-promptpop` card). Renders when `app.buyPrompt !== null`. Shows book cover, title, "Buy now · $price" and "Maybe later". Clicking the backdrop or "Maybe later" calls `dismissBuyPrompt()`. "Buy now" calls `buyNow(id)`. Rendered at the root level in `App.tsx` (same z-index plane as `PlayerDesktop`/`PlayerMobile`).
 
 **`SleepControl`** — popover: Off/15/30/45/60min/End of chapter. Expands with countdown when active. `dir="up"|"down"`.
+
+**Transport buttons (all players):** skip uses `seekRel(±15)` — 15 seconds in both directions. Forward icon is `GEIcon.fwd15`. Every `IconBtn` transport control carries an `aria-label` (`"Rewind 15 seconds"`, `"Forward 15 seconds"`, `"Previous chapter"`, `"Next chapter"`). Skip buttons call `.blur()` on their element after the seek so the CSS `:active` ring clears immediately.
+
+**Keyboard shortcuts (desktop):** `Shell` registers a single `keydown` listener (via `appRef` ref, stable across renders). Active only when `nowPlaying !== null` and the focused element is not an `input`, `textarea`, or `contenteditable`. **Space** = play/pause · **←** = rewind 15 s · **→** = forward 15 s.
 
 **`Waveform`** — 130 bars (desktop) / 50 (mobile). Bars left of `pct` = `T.accent2`. Pointer drag supported. `pct` and `onSeek` must be **chapter-relative** (0–100 within the current chapter), not book-relative. Use `seekInChapter` (see pitfalls).
 
 **Equalizer (`.ge-eq` spans):** Never set inline `height` — overrides animation. Only `width`, `background`, `borderRadius`, `animationDelay`.
 
 **`useFlash`:** `const [node, showFlash] = useFlash()` — toast, auto-dismisses after 1600ms.
+
+**`useClickOutside(ref, onClose, enabled)`** (`Atoms.tsx`) — closes a popover when a `pointerdown` fires outside `ref`. Pass `open` as `enabled` so the listener is only active while the popover is open.
 
 ---
 
@@ -199,7 +220,7 @@ Auth (`Auth.tsx`) outside router — `Shell` returns `<Auth />` when `!app.authe
 
 - **Home:** Hero = `app.booksById['machine']` (or top-rated fallback). "Continue" row hidden until `continueBooks.length > 0`.
 - **Search:** Calls `GET /books?q=...&genre=...&sort=...&page=...`. 300ms debounce on typing. "Load more" pagination. Falls back to `Object.values(booksById)` if API unreachable.
-- **Detail:** Fetches `GET /books/{id}/chapters` on open; caches in `app.chaptersById`. Falls back to `GE_CHAPTERS`. Resets tab to Overview on `bookId` change.
+- **Detail:** Fetches `GET /books/{id}/chapters` on open; caches in `app.chaptersById`. Falls back to `GE_CHAPTERS`. Tab resets to Overview on `bookId` change via derived state (`tabState = { bookId, tab }` — no `useEffect`).
 - **Cart:** Subtotal → −30% Premium → +8% tax. `placeOrder()` calls `POST /orders/checkout`.
 - **Checkout:** Error state for API failures (e.g. cart empty, all items already owned).
 - **Library:** Listening (resume cards) / Owned (grid) / Wishlist (grid). All from API state.
@@ -267,10 +288,15 @@ All styling is **inline `style` props**. Tailwind classes only in `layout.tsx`.
   const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
   ```
   Time labels show `fmt(chapterPos)` / `fmt(chapterLen)`. Never pass raw `np.pos / b.secs` to Waveform or Scrubber.
-- **No components defined inside components:** Defining a component inside another component's function body gives it a new reference on every render. React treats it as a different type, unmounts the old node, and mounts a fresh one — inputs lose focus after each keystroke. Always define helper components at module scope.
+- **No components defined inside components:** Defining a component inside another component's function body gives it a new reference on every render. React treats it as a different type, unmounts the old node, and mounts a fresh one — inputs lose focus after each keystroke. Always define helper components at module scope. The `react-hooks/static-components` rule enforces this; if the inner component needs parent state, promote it to module scope and pass `active`/`onClick` props instead.
+- **`useMemo` requires an inline arrow function:** `useMemo(() => fn(), [])` not `useMemo(fn, [])`. The `react-hooks/use-memo` rule rejects bare function references as the first argument.
+- **No impure functions (`Math.random`, `Date.now`, etc.) inside `useMemo`/`useCallback`:** The `react-hooks/purity` rule flags these as producing unstable results between renders. For one-time random initialization use `useState(() => computeValue())` — the lazy initializer runs once at mount, not on re-render.
+- **No `setState` directly in `useEffect` body:** The `react-hooks/set-state-in-effect` rule flags synchronous `setState` calls in effect bodies as a cascading-render risk. For resetting a piece of state when a context value changes, use derived state instead: store `{ contextKey, value }` together and compute the reset inline — e.g. `const tab = tabState.bookId === app.bookId ? tabState.tab : 'Overview'`. This avoids an extra render cycle entirely.
+- **Smart/curly quotes cause parse errors:** Some editors autocorrect `'` to `'`/`'` (U+2018/U+2019). These are not valid JS string delimiters and produce `Parsing error: Invalid character` at the opening quote. The fix is a global byte-level replace — the Edit tool will not match them because they look identical in most fonts.
 - **Frontend has no hot-reload volume mount** — unlike the backend, source changes require `docker compose build frontend && docker compose up -d frontend`. Failing to rebuild after adding packages (e.g. `hls.js`) means the module is silently absent and audio falls back to simulation.
 - **`NEXT_PUBLIC_API_URL` is baked at build time** — the runtime env var in docker-compose is ignored for client bundles. The fallback `http://localhost:8000` works for local dev. For other environments, pass it as a Docker `ARG` during the build stage.
-- **HLS audio requires chapters loaded from API** — `currentChapterDbId` (needed to call the HLS endpoint) is only present on chapters fetched via `GET /books/{id}/chapters`. `GE_CHAPTERS` fallback chapters have no `dbId`; the HLS load effect skips them.
+- **HLS audio requires chapters loaded from API** — `currentChapterDbId` (needed to call the HLS endpoint) is only present on chapters fetched via `GET /books/{id}/chapters`. `GE_CHAPTERS` fallback chapters have no `dbId`; the HLS load effect skips them. The chapter auto-fetch effect guarantees chapters are loaded whenever `np.bookId` is set, so the HLS effect will eventually fire even if chapters aren't ready at the moment of the first interaction (play button, skip chapter, etc.).
+- **Never call `engine.play()` directly after `engine.load()`** — `load()` resets the `loaded` flag; `play()` called before `MANIFEST_PARSED` would silently fail on some browsers. Use `engine.play()` and let the engine's pending-play mechanism handle the timing. The AppContext HLS effect already does this correctly.
 - **Segment URLs are proxied through the backend** — `getChapterHLS` rewrites relative `.ts` filenames in the playlist to absolute `http://backend/books/{id}/chapters/{id}/hls/{file}` URLs. hls.js then fetches segments via XHR with the `Authorization` header injected by `xhrSetup`. Never point hls.js directly at MinIO.
 - **Sample chapter (index 0) plays real audio** — the HLS load effect allows `np.chapter === 0` even when the book is not owned. The backend skips ownership check for `chapter.idx == 0`. All other chapters are gated. Do not conflate "not owned" with "no audio" — the sample always has a real HLS stream.
 - **Locked chapter UI:** when `chapterLocked(np.chapter, owned)` is true the full players replace the transport controls with a "chapter is locked — Buy now" banner. Chapter list items in the player always call `goChapter(i)` (never `buyNow`); `goChapter` internally turns off playback for locked chapters and the blocked transport shows the buy CTA.

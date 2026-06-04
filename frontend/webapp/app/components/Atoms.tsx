@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef } from 'react'
+import React, { useRef, useEffect } from 'react'
 import { T } from './theme'
 import { GEIcon } from './Icons'
 
@@ -49,27 +49,79 @@ export function Btn({ children, kind = 'primary', size = 'md', icon, full, style
 interface IconBtnProps {
   children: React.ReactNode;
   active?: boolean;
+  disabled?: boolean;
   size?: number;
   title?: string;
+  'aria-label'?: string;
+  className?: string;
   style?: React.CSSProperties;
   onClick?: (e: React.MouseEvent) => void;
 }
-export function IconBtn({ children, active, size = 40, title, style, onClick }: IconBtnProps) {
+export function IconBtn({ children, active, disabled, size = 40, title, 'aria-label': ariaLabel, className, style, onClick }: IconBtnProps) {
   return (
     <button
       onClick={onClick}
       title={title}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      className={'ge-tactile' + (className ? ' ' + className : '')}
       style={{
-        width: size, height: size, borderRadius: 99, border: 'none', cursor: 'pointer',
+        width: size, height: size, borderRadius: 99, border: 'none', cursor: disabled ? 'default' : 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: active ? T.accentDim : 'transparent',
         color: active ? T.accent2 : T.mut,
-        transition: 'background .15s, color .15s', flexShrink: 0, ...style,
+        flexShrink: 0, opacity: disabled ? 0.3 : 1, ...style,
       }}
-      onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = T.elev }}
-      onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+      onMouseEnter={(e) => { if (!active && !disabled) (e.currentTarget as HTMLButtonElement).style.background = T.elev }}
+      onMouseLeave={(e) => { if (!active && !disabled) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
     >
       {children}
+    </button>
+  )
+}
+
+// ── PlayButton ──
+function hexToRgba(hex: string, a: number) {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
+}
+interface PlayButtonProps {
+  playing: boolean;
+  onClick?: () => void;
+  size?: number;
+  variant?: 'accent' | 'light';
+  iconSize?: number;
+  style?: React.CSSProperties;
+}
+export function PlayButton({ playing, onClick, size = 76, variant = 'accent', iconSize, style }: PlayButtonProps) {
+  const light = variant === 'light'
+  const is = iconSize || Math.round(size * 0.4)
+  const glowColor = hexToRgba(T.accent, 0.55)
+  const ringColor = light ? hexToRgba(T.accent, 0.4) : hexToRgba(T.accent2, 0.6)
+  return (
+    <button
+      onClick={onClick}
+      className="ge-playbtn"
+      data-playing={playing ? 'true' : 'false'}
+      aria-label={playing ? 'Pause' : 'Play'}
+      style={{
+        width: size, height: size, borderRadius: size / 2, border: 'none', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: light ? '#fff' : `linear-gradient(135deg, ${T.accent2}, ${T.accent})`,
+        boxShadow: light ? '0 8px 24px rgba(0,0,0,0.32)' : `0 12px 34px ${glowColor}`,
+        ['--pb-glow' as string]: glowColor,
+        ['--pb-ring' as string]: ringColor,
+        ...style,
+      }}
+    >
+      <span className="ge-sonar" />
+      <span className="ge-sonar s2" />
+      <span key={playing ? 'pause' : 'play'} className="ge-iconpop" style={{ display: 'flex', position: 'relative' }}>
+        {playing
+          ? <GEIcon.pause s={is} style={{ color: light ? '#15101f' : '#fff' }} />
+          : <GEIcon.play  s={is} style={{ color: light ? '#15101f' : '#fff' }} />
+        }
+      </span>
     </button>
   )
 }
@@ -147,19 +199,18 @@ export function Scrubber({ pct, onSeek, height = 4, glow }: ScrubberProps) {
   )
 }
 
-// ── PageHead ──
-interface PageHeadProps { title: string; sub?: string; mobile?: boolean }
-export function PageHead({ title, sub, mobile }: PageHeadProps) {
-  if (mobile) return (
-    <div style={{ marginBottom: 18 }}>
-      <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 24, color: T.text, letterSpacing: '-0.02em' }}>{title}</span>
-      {sub && <span style={{ fontSize: 14, color: T.mut, marginLeft: 10 }}>{sub}</span>}
-    </div>
-  )
-  return (
-    <div style={{ marginBottom: 26 }}>
-      <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 32, color: T.text, letterSpacing: '-0.02em' }}>{title}</span>
-      {sub && <span style={{ fontSize: 15, color: T.mut, marginLeft: 12 }}>{sub}</span>}
-    </div>
-  )
+// ── useClickOutside ──
+export function useClickOutside(
+  ref: React.RefObject<HTMLElement | null>,
+  onClose: () => void,
+  enabled: boolean,
+) {
+  useEffect(() => {
+    if (!enabled) return
+    const close = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [ref, enabled, onClose])
 }

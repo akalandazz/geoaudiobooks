@@ -1,12 +1,12 @@
-'use client'
+﻿'use client'
 
-import React from 'react'
+import React, { useRef } from 'react'
 import { T } from './theme'
 import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
-import { IconBtn, Scrubber } from './Atoms'
+import { IconBtn, PlayButton, Scrubber, useClickOutside } from './Atoms'
 import { SleepControl } from './Player'
-import { GE_BOOK_BY_ID, GE_BOOKS, GE_CHAPTERS, Book, fmtClock, fmt } from './bookdata'
+import { GE_BOOK_BY_ID, GE_CHAPTERS, Book, fmtClock, fmt } from './bookdata'
 import { useApp } from './AppContext'
 
 // ── Logo ──
@@ -23,30 +23,30 @@ export function Logo({ size = 18 }: { size?: number }) {
 }
 
 // ── Sidebar (desktop) ──
+function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
+  const [hov, setHov] = React.useState(false)
+  return (
+    <div onClick={onClick}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, padding: '10px 12px',
+        borderRadius: 10, cursor: 'pointer',
+        color: active || hov ? T.text : T.mut,
+        background: active ? T.elev : (hov ? T.surface : 'transparent'),
+        transform: hov && !active ? 'translateX(3px)' : 'translateX(0)',
+        fontFamily: T.body, fontWeight: 600, fontSize: 14.5,
+        transition: 'background .2s ease, color .2s ease, transform .22s cubic-bezier(.22,.61,.36,1)' }}>
+      <span style={{ position: 'absolute', left: -2, top: '50%', width: 3, height: active ? 18 : 0,
+        borderRadius: 3, background: T.accent2, transform: 'translateY(-50%)',
+        transition: 'height .26s cubic-bezier(.34,1.56,.64,1)' }} />
+      <span style={{ display: 'flex', transform: active ? 'scale(1.06)' : (hov ? 'scale(1.14)' : 'scale(1)'),
+        transition: 'transform .24s cubic-bezier(.34,1.56,.64,1)' }}>{icon}</span>
+      {label}
+    </div>
+  )
+}
+
 export function Sidebar() {
   const app = useApp()
-  const Item = ({ icon, label, view }: { icon: React.ReactNode; label: string; view: string }) => {
-    const active = app.view === view
-    const [hov, setHov] = React.useState(false)
-    return (
-      <div onClick={() => app.nav(view)}
-        onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-        style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, padding: '10px 12px',
-          borderRadius: 10, cursor: 'pointer',
-          color: active || hov ? T.text : T.mut,
-          background: active ? T.elev : (hov ? T.surface : 'transparent'),
-          transform: hov && !active ? 'translateX(3px)' : 'translateX(0)',
-          fontFamily: T.body, fontWeight: 600, fontSize: 14.5,
-          transition: 'background .2s ease, color .2s ease, transform .22s cubic-bezier(.22,.61,.36,1)' }}>
-        <span style={{ position: 'absolute', left: -2, top: '50%', width: 3, height: active ? 18 : 0,
-          borderRadius: 3, background: T.accent2, transform: 'translateY(-50%)',
-          transition: 'height .26s cubic-bezier(.34,1.56,.64,1)' }} />
-        <span style={{ display: 'flex', transform: active ? 'scale(1.06)' : (hov ? 'scale(1.14)' : 'scale(1)'),
-          transition: 'transform .24s cubic-bezier(.34,1.56,.64,1)' }}>{icon}</span>
-        {label}
-      </div>
-    )
-  }
   const recents = app.library.slice(0, 3).map(id => GE_BOOK_BY_ID[id]).filter(Boolean)
   return (
     <div style={{
@@ -56,9 +56,9 @@ export function Sidebar() {
       <div style={{ padding: '0 8px 22px', cursor: 'pointer' }} onClick={() => app.nav('home')}>
         <Logo />
       </div>
-      <Item icon={<GEIcon.home s={20} />} label="Home" view="home" />
-      <Item icon={<GEIcon.search s={20} />} label="Search" view="search" />
-      <Item icon={<GEIcon.library s={20} />} label="Your Library" view="library" />
+      <SidebarItem icon={<GEIcon.home s={20} />} label="Home" active={app.view === 'home'} onClick={() => app.nav('home')} />
+      <SidebarItem icon={<GEIcon.search s={20} />} label="Search" active={app.view === 'search'} onClick={() => app.nav('search')} />
+      <SidebarItem icon={<GEIcon.library s={20} />} label="Your Library" active={app.view === 'library'} onClick={() => app.nav('library')} />
       <div style={{ height: 1, background: T.line, margin: '16px 8px' }} />
       <div style={{ padding: '0 12px', fontFamily: T.body, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.dim, marginBottom: 8 }}>Jump back in</div>
       <div className="ge-scroll" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
@@ -90,57 +90,35 @@ export function Sidebar() {
 }
 
 // ── Bottom nav (mobile) ──
+function BottomNavItem({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
+  return (
+    <div onClick={onClick} style={{
+      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+      padding: '8px 0', cursor: 'pointer', color: active ? T.accent2 : T.mut,
+      transition: 'color .2s ease',
+    }}>
+      <span style={{ display: 'flex', transform: active ? 'translateY(-2px) scale(1.12)' : 'translateY(0) scale(1)', transition: 'transform .26s cubic-bezier(.34,1.56,.64,1)' }}>{icon}</span>
+      <span style={{ fontFamily: T.body, fontWeight: 700, fontSize: 10.5 }}>{label}</span>
+    </div>
+  )
+}
+
 export function BottomNav() {
   const app = useApp()
-  const Item = ({ icon, label, view }: { icon: React.ReactNode; label: string; view: string }) => {
-    const active = app.view === view
-    return (
-      <div onClick={() => app.nav(view)} style={{
-        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-        padding: '8px 0', cursor: 'pointer', color: active ? T.accent2 : T.mut,
-        transition: 'color .2s ease',
-      }}>
-        <span style={{ display: 'flex', transform: active ? 'translateY(-2px) scale(1.12)' : 'translateY(0) scale(1)', transition: 'transform .26s cubic-bezier(.34,1.56,.64,1)' }}>{icon}</span>
-        <span style={{ fontFamily: T.body, fontWeight: 700, fontSize: 10.5 }}>{label}</span>
-      </div>
-    )
-  }
   return (
     <div style={{ flexShrink: 0, display: 'flex', borderTop: '1px solid ' + T.line, background: T.bg2, paddingBottom: 6 }}>
-      <Item icon={<GEIcon.home s={22} />} label="Home" view="home" />
-      <Item icon={<GEIcon.search s={22} />} label="Search" view="search" />
-      <Item icon={<GEIcon.library s={22} />} label="Library" view="library" />
-      <Item
+      <BottomNavItem icon={<GEIcon.home s={22} />} label="Home" active={app.view === 'home'} onClick={() => app.nav('home')} />
+      <BottomNavItem icon={<GEIcon.search s={22} />} label="Search" active={app.view === 'search'} onClick={() => app.nav('search')} />
+      <BottomNavItem icon={<GEIcon.library s={22} />} label="Library" active={app.view === 'library'} onClick={() => app.nav('library')} />
+      <BottomNavItem
         icon={<div style={{ width: 22, height: 22, borderRadius: 11, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)' }} />}
-        label="You" view="profile"
+        label="You" active={app.view === 'profile'} onClick={() => app.nav('profile')}
       />
     </div>
   )
 }
 
 // ── Notification bell with dropdown ──
-interface Notif {
-  id: string
-  kind: 'book' | 'premium'
-  bookId?: string
-  title: string
-  body: string
-  ts: number
-  unread: boolean
-  action?: (app: ReturnType<typeof useApp>) => void
-}
-
-const NOTIF_SEED: Notif[] = [
-  { id: 'n1', kind: 'book', bookId: 'neon', title: 'Price drop on your wishlist',
-    body: 'Neon Wolves is now $14.99 — 25% off for the next 2 days.', ts: Date.now() - 1000 * 60 * 24, unread: true,
-    action: (app) => app.openDetail('neon') },
-  { id: 'n2', kind: 'book', bookId: 'machine', title: 'New from authors you follow',
-    body: "Cyrus Mbeki’s The Quiet Machine is now available to listen.", ts: Date.now() - 1000 * 60 * 60 * 5, unread: true,
-    action: (app) => app.openDetail('machine') },
-  { id: 'n3', kind: 'premium', title: 'Your free trial is ready',
-    body: '30 days of unlimited, lossless listening — start anytime.', ts: Date.now() - 1000 * 60 * 60 * 27, unread: false,
-    action: (app) => app.nav('settings') },
-]
 
 function relTime(ts: number) {
   const d = Math.max(0, Date.now() - ts), m = Math.floor(d / 60000)
@@ -155,20 +133,16 @@ function relTime(ts: number) {
 export function NotifBell({ size = 40, dropRight = 0 }: { size?: number; dropRight?: number }) {
   const app = useApp()
   const [open, setOpen] = React.useState(false)
-  const [items, setItems] = React.useState(NOTIF_SEED)
   const ref = React.useRef<HTMLDivElement>(null)
-  const unread = items.filter(n => n.unread).length
-  React.useEffect(() => {
-    if (!open) return
-    const close = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    window.addEventListener('pointerdown', close)
-    return () => window.removeEventListener('pointerdown', close)
-  }, [open])
-  const markAll = () => setItems(xs => xs.map(n => ({ ...n, unread: false })))
-  const onItem = (n: Notif) => {
-    setItems(xs => xs.map(x => x.id === n.id ? { ...x, unread: false } : x))
+  const items = app.notifications
+  const unread = items.filter(n => !n.is_read).length
+  useClickOutside(ref, () => setOpen(false), open)
+  const markAll = () => app.markAllNotifsRead()
+  const onItem = (n: typeof items[0]) => {
+    app.markNotifRead(n.id)
     setOpen(false)
-    if (n.action) n.action(app)
+    if (n.book_id) app.openDetail(n.book_id)
+    else app.nav('settings')
   }
   return (
     <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
@@ -188,13 +162,13 @@ export function NotifBell({ size = 40, dropRight = 0 }: { size?: number; dropRig
           <div style={{ height: 1, background: T.line, margin: '0 6px 6px' }} />
           <div className="ge-scroll" style={{ maxHeight: 360, overflowY: 'auto' }}>
             {items.length === 0
-              ? <div style={{ padding: '26px 14px', textAlign: 'center', color: T.dim, fontSize: 13 }}>You're all caught up.</div>
+              ? <div style={{ padding: '26px 14px', textAlign: 'center', color: T.dim, fontSize: 13 }}>You&apos;re all caught up.</div>
               : items.map(n => {
-                  const b = n.bookId ? GE_BOOK_BY_ID[n.bookId] : null
+                  const b = n.book_id ? (app.booksById[n.book_id] || GE_BOOK_BY_ID[n.book_id]) : null
                   return (
-                    <button key={n.id} onClick={() => onItem(n)} style={{ display: 'flex', gap: 12, width: '100%', textAlign: 'left', padding: '11px 10px', border: 'none', borderRadius: 10, cursor: 'pointer', background: n.unread ? T.accentDim : 'transparent', transition: 'background .12s', marginBottom: 2 }}
-                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = n.unread ? T.accentDim : T.elev}
-                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = n.unread ? T.accentDim : 'transparent'}>
+                    <button key={n.id} onClick={() => onItem(n)} style={{ display: 'flex', gap: 12, width: '100%', textAlign: 'left', padding: '11px 10px', border: 'none', borderRadius: 10, cursor: 'pointer', background: !n.is_read ? T.accentDim : 'transparent', transition: 'background .12s', marginBottom: 2 }}
+                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = !n.is_read ? T.accentDim : T.elev}
+                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = !n.is_read ? T.accentDim : 'transparent'}>
                       {b
                         ? <div style={{ flexShrink: 0 }}><BookCover book={b} w={44} radius={8} /></div>
                         : <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, background: 'linear-gradient(150deg,#2a1d52,#181030)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.accent2 }}><GEIcon.star s={20} /></div>
@@ -202,11 +176,11 @@ export function NotifBell({ size = 40, dropRight = 0 }: { size?: number; dropRig
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                           <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 13.5, color: T.text, flex: 1 }}>{n.title}</span>
-                          <span style={{ fontSize: 11, color: T.dim, flexShrink: 0 }}>{relTime(n.ts)}</span>
+                          <span style={{ fontSize: 11, color: T.dim, flexShrink: 0 }}>{relTime(new Date(n.created_at).getTime())}</span>
                         </div>
                         <div style={{ fontFamily: T.body, fontSize: 12.5, color: T.mut, marginTop: 3, lineHeight: 1.45 }}>{n.body}</div>
                       </div>
-                      {n.unread && <span style={{ width: 8, height: 8, borderRadius: 4, background: T.accent2, flexShrink: 0, marginTop: 5 }} />}
+                      {!n.is_read && <span style={{ width: 8, height: 8, borderRadius: 4, background: T.accent2, flexShrink: 0, marginTop: 5 }} />}
                     </button>
                   )
                 })
@@ -219,24 +193,22 @@ export function NotifBell({ size = 40, dropRight = 0 }: { size?: number; dropRig
 }
 
 // ── Account menu (desktop avatar dropdown) ──
-export function AccountMenu() {
-  const app = useApp()
-  const [open, setOpen] = React.useState(false)
-  const ref = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    if (!open) return
-    const close = (e: PointerEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    window.addEventListener('pointerdown', close)
-    return () => window.removeEventListener('pointerdown', close)
-  }, [open])
-  const go = (v: string) => { setOpen(false); app.nav(v) }
-  const MItem = ({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) => (
+function AccountMenuItem({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
+  return (
     <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', color: danger ? '#FB7185' : T.text, fontFamily: T.body, fontWeight: 600, fontSize: 14, borderRadius: 9, transition: 'background .12s' }}
       onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = danger ? 'rgba(251,113,133,0.12)' : T.elev}
       onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'transparent'}>
       <span style={{ display: 'flex', color: danger ? '#FB7185' : T.mut }}>{icon}</span>{label}
     </button>
   )
+}
+
+export function AccountMenu() {
+  const app = useApp()
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+  useClickOutside(ref, () => setOpen(false), open)
+  const go = (v: string) => { setOpen(false); app.nav(v) }
   return (
     <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
       <button onClick={() => setOpen(o => !o)} title="Account" style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid ' + (open ? T.line2 : 'transparent'), background: open ? T.surface : 'transparent', borderRadius: 99, padding: '4px 8px 4px 4px', cursor: 'pointer' }}>
@@ -253,11 +225,11 @@ export function AccountMenu() {
             </div>
           </div>
           <div style={{ height: 1, background: T.line, margin: '0 6px 6px' }} />
-          <MItem icon={<GEIcon.person s={18} />} label="Your profile" onClick={() => go('profile')} />
-          <MItem icon={<GEIcon.library s={18} />} label="Your library" onClick={() => go('library')} />
-          <MItem icon={<GEIcon.gear s={18} />} label="Settings" onClick={() => go('settings')} />
+          <AccountMenuItem icon={<GEIcon.person s={18} />} label="Your profile" onClick={() => go('profile')} />
+          <AccountMenuItem icon={<GEIcon.library s={18} />} label="Your library" onClick={() => go('library')} />
+          <AccountMenuItem icon={<GEIcon.gear s={18} />} label="Settings" onClick={() => go('settings')} />
           <div style={{ height: 1, background: T.line, margin: '6px 6px' }} />
-          <MItem icon={<GEIcon.logout s={18} />} label="Sign out" danger onClick={() => { setOpen(false); app.signOut() }} />
+          <AccountMenuItem icon={<GEIcon.logout s={18} />} label="Sign out" danger onClick={() => { setOpen(false); app.signOut() }} />
         </div>
       )}
     </div>
@@ -326,8 +298,8 @@ export function BookCard({ b, w = 158, progress, onClick }: { b: Book; w?: numbe
   return (
     <div style={{ width: w, flexShrink: 0, cursor: 'pointer' }} onClick={go} className="ge-card">
       <div style={{ position: 'relative' }}>
-        <BookCover book={b} w={typeof w === 'number' ? w : undefined} radius={12} style={typeof w === 'string' ? { width: '100%', aspectRatio: '1', height: 'auto' } : undefined} />
-        <button onClick={e => { e.stopPropagation(); app.openPlayer(b.id) }}
+        <BookCover book={b} w={typeof w === 'number' ? w : undefined} radius={12} style={typeof w === 'string' ? { width: '100%', aspectRatio: '2/3', height: 'auto' } : { height: Math.round((typeof w === 'number' ? w : 158) * 1.5) }} />
+        <button onClick={e => { e.stopPropagation(); app.playBook(b.id) }}
           className="ge-cardplay"
           style={{ position: 'absolute', right: 8, bottom: 8, width: 40, height: 40, borderRadius: 20, background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 16px rgba(139,92,246,0.5)', border: 'none', cursor: 'pointer', opacity: 0, transform: 'translateY(6px)', transition: 'all .18s' }}>
           <GEIcon.play s={16} style={{ color: '#fff' }} />
@@ -369,6 +341,7 @@ export function Row({ title, sub, books, progressMap, onShowAll }: { title: stri
 // ── Mini player ──
 export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   const app = useApp()
+  const seekBarRef = useRef<HTMLDivElement>(null)
   const np = app.nowPlaying
   if (!np) return null
   const b = app.booksById[np.bookId] || GE_BOOK_BY_ID[np.bookId]
@@ -377,6 +350,8 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   const owned = app.isOwned(b.id)
   const SAMPLE_CH = 1
   const blocked = !owned && np.chapter >= SAMPLE_CH
+  const hasPrev = np.chapter > 0
+  const hasNext = np.chapter < chapters.length - 1 && (owned || np.chapter + 1 < SAMPLE_CH)
   const total = owned ? b.secs : (chapters.length > SAMPLE_CH ? (chapters[SAMPLE_CH]?.start ?? b.secs) : b.secs)
   const ch = chapters[np.chapter] || chapters[0]
   const chapterStart = ch?.start ?? 0
@@ -386,29 +361,49 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
   const seekInChapter = (p: number) => app.seekPct(((chapterStart + (p / 100) * chapterLen) / b.secs) * 100)
   if (mobile) {
     return (
-      <div onClick={() => app.openPlayer(b.id)} style={{ flexShrink: 0, margin: '0 8px 4px', background: T.elev, borderRadius: 12, padding: 8, display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', position: 'relative', overflow: 'hidden' }}>
-        <BookCover book={b} w={42} radius={7} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 13.5, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
-          <div style={{ fontSize: 11.5, color: blocked ? T.accent2 : T.mut }}>{blocked ? 'Chapter locked' : (owned ? fmtClock(total - np.pos) + ' left' : 'Sample preview')}</div>
+      <div role="region" aria-label="Now playing" style={{ flexShrink: 0, margin: '0 8px 4px', background: T.elev, borderRadius: 12, padding: 8, display: 'flex', alignItems: 'center', gap: 11, position: 'relative', overflow: 'hidden' }}>
+        <div onClick={() => app.openPlayer(b.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+          <BookCover book={b} w={42} radius={7} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 13.5, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
+            <div style={{ fontSize: 11.5, color: blocked ? T.accent2 : T.mut }}>{blocked ? 'Chapter locked' : (owned ? fmtClock(total - np.pos) + ' left' : 'Sample preview')}</div>
+          </div>
         </div>
         {blocked ? (
-          <IconBtn size={40} onClick={e => { e.stopPropagation(); app.openPlayer(b.id) }} style={{ color: T.accent2 }}>
+          <IconBtn size={40} aria-label="Chapter locked — open player" onClick={() => app.openPlayer(b.id)} style={{ color: T.accent2 }}>
             <GEIcon.lock s={20} />
           </IconBtn>
         ) : (
-          <IconBtn size={40} onClick={e => { e.stopPropagation(); app.togglePlay() }} style={{ color: T.text }}>
+          <IconBtn size={40} aria-label={np.playing ? 'Pause' : 'Play'} onClick={e => { e.stopPropagation(); app.togglePlay() }} style={{ color: T.text }}>
             {np.playing ? <GEIcon.pause s={22} /> : <GEIcon.play s={22} />}
           </IconBtn>
         )}
-        <div style={{ position: 'absolute', left: 0, bottom: 0, height: 2.5, width: pct + '%', background: T.accent2 }} />
+        <IconBtn size={36} onClick={e => { e.stopPropagation(); app.stopPlayer() }} title="Stop and dismiss" aria-label="Stop and dismiss player" style={{ color: T.mut, flexShrink: 0 }}>
+          <GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} />
+        </IconBtn>
+        <div
+          ref={seekBarRef}
+          onPointerDown={(e) => {
+            e.preventDefault(); e.stopPropagation()
+            const r = seekBarRef.current!.getBoundingClientRect()
+            seekInChapter(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * 100)
+            const move = (ev: PointerEvent) => seekInChapter(Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * 100)
+            const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
+            window.addEventListener('pointermove', move); window.addEventListener('pointerup', up)
+          }}
+          style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 12, cursor: 'pointer' }}
+        >
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: 'rgba(255,255,255,0.08)' }}>
+            <div style={{ width: pct + '%', height: '100%', background: T.accent2, borderRadius: 1.5 }} />
+          </div>
+        </div>
       </div>
     )
   }
   if (blocked) {
     return (
-      <div onClick={() => app.openPlayer(b.id)} style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18, cursor: 'pointer' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 13, width: 270 }}>
+      <div role="region" aria-label="Now playing" style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18 }}>
+        <div onClick={() => app.openPlayer(b.id)} style={{ display: 'flex', alignItems: 'center', gap: 13, width: 270, cursor: 'pointer' }}>
           <BookCover book={b} w={52} radius={8} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: T.disp, fontWeight: 600, fontSize: 14, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
@@ -421,12 +416,14 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
           </div>
           <span style={{ fontSize: 13, color: T.mut }}>Purchase to continue listening</span>
         </div>
-        <div style={{ width: 200 }} />
+        <div style={{ width: 200, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <IconBtn size={34} onClick={() => app.stopPlayer()} title="Stop and dismiss" aria-label="Stop and dismiss player" style={{ color: T.mut }}><GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} /></IconBtn>
+        </div>
       </div>
     )
   }
   return (
-    <div style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18 }}>
+    <div role="region" aria-label="Now playing" style={{ height: 84, flexShrink: 0, borderTop: '1px solid ' + T.line, background: '#0d0d15', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 18 }}>
       <div onClick={() => app.openPlayer(b.id)} style={{ display: 'flex', alignItems: 'center', gap: 13, width: 270, cursor: 'pointer' }}>
         <BookCover book={b} w={52} radius={8} />
         <div style={{ minWidth: 0 }}>
@@ -439,13 +436,11 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
-          <IconBtn size={34} onClick={() => app.seekRel(-15)}><GEIcon.back15 s={20} /></IconBtn>
-          <IconBtn size={34} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
-          <button onClick={() => app.togglePlay()} style={{ width: 42, height: 42, borderRadius: 21, background: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {np.playing ? <GEIcon.pause s={19} style={{ color: '#000' }} /> : <GEIcon.play s={19} style={{ color: '#000' }} />}
-          </button>
-          <IconBtn size={34} onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
-          <IconBtn size={34} onClick={() => app.seekRel(30)}><GEIcon.fwd30 s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-l" aria-label="Rewind 10 seconds" onClick={() => app.seekRel(-10)}><GEIcon.back15 s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-l" aria-label="Previous chapter" disabled={!hasPrev} onClick={() => app.skipChapter(-1)}><GEIcon.prev s={20} /></IconBtn>
+          <PlayButton playing={np.playing} onClick={() => app.togglePlay()} size={42} variant="light" iconSize={19} />
+          <IconBtn size={34} className="ge-nudge-r" aria-label="Next chapter" disabled={!hasNext} onClick={() => app.skipChapter(1)}><GEIcon.next s={20} /></IconBtn>
+          <IconBtn size={34} className="ge-nudge-r" aria-label="Forward 10 seconds" onClick={() => app.seekRel(10)}><GEIcon.fwd15 s={20} /></IconBtn>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '74%' }}>
           <span style={{ fontSize: 11, color: T.mut, fontVariantNumeric: 'tabular-nums' }}>{fmt(chapterPos)}</span>
@@ -457,6 +452,7 @@ export function MiniPlayer({ mobile }: { mobile?: boolean }) {
         <button onClick={() => app.cycleSpeed()} style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 12.5, border: '1px solid ' + T.line, padding: '5px 9px', borderRadius: 7, background: 'transparent', color: T.text, cursor: 'pointer' }}>{np.speed}×</button>
         <SleepControl size={34} dir="up" iconSize={19} />
         <IconBtn size={34} onClick={() => app.openPlayer(b.id)}><GEIcon.list s={19} /></IconBtn>
+        <IconBtn size={34} onClick={() => app.stopPlayer()} title="Stop and dismiss" aria-label="Stop and dismiss player"><GEIcon.plus s={16} style={{ transform: 'rotate(45deg)' }} /></IconBtn>
       </div>
     </div>
   )

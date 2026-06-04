@@ -1,0 +1,27 @@
+id: ambavi-gagonilni
+title: "ამბავი გაგონილნი"
+author: ილია ჭავჭავაძე
+narrator: Scott Brick
+genre: History
+year: 2002
+price: 14.99
+rating_avg: 4.4
+reviews_count: 0
+blurb: >
+  ილია ჭავჭავაძის ნაამბობი.
+tags:
+  - history
+  - geography
+  - food
+  - non-fiction
+palette:
+  - "#C4A882"
+  - "#8B6B45"
+  - "#2C1810"
+motif: wave
+cover_file: media/ambaviGagonilni/cover.png
+
+chapters:
+  - title: "შესავალი"
+    length_secs: 52
+    hls_dir: media/ambaviGagonilni

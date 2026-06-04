@@ -13,6 +13,7 @@ export interface Book {
   price: number;
   palette: [string, string, string];
   motif: 'lines' | 'wave' | 'grid' | 'soft';
+  cover?: string;
   year: number;
   tags: string[];
   blurb: string;

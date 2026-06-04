@@ -108,9 +108,26 @@ export function Library() {
         {tab !== 'Listening' && (
           show.length === 0
             ? <LibraryEmpty t={tab} onBrowse={onBrowse} />
-            : <div style={{ display: 'grid', gridTemplateColumns: colW, gap: mob ? 18 : 24, rowGap: 28 }}>
-                {show.map(b => <BookCard key={b.id} b={b} w="100%" />)}
-              </div>
+            : tab === 'Wishlist'
+              ? <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {show.map(b => (
+                    <div key={b.id} style={{ display: 'flex', gap: 14, background: T.surface, border: '1px solid ' + T.line, borderRadius: 14, padding: 14, alignItems: 'center' }}>
+                      <BookCover book={b} w={mob ? 64 : 76} radius={9} onClick={() => app.openDetail(b.id)} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: T.disp, fontWeight: 700, fontSize: mob ? 15 : 17, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.title}</div>
+                        <div style={{ fontSize: 13, color: T.mut, marginTop: 3 }}>{b.author}</div>
+                        <div style={{ fontSize: 13, color: T.dim, marginTop: 2 }}>{b.dur} · ${b.price.toFixed(2)}</div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+                        <Btn kind="primary" size="sm" onClick={() => app.moveFromWishlist(b.id)}>Move to cart</Btn>
+                        <Btn kind="ghost" size="sm" onClick={() => app.toggleWishlist(b.id)}>Remove</Btn>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              : <div style={{ display: 'grid', gridTemplateColumns: colW, gap: mob ? 18 : 24, rowGap: 28 }}>
+                  {show.map(b => <BookCard key={b.id} b={b} w="100%" />)}
+                </div>
         )}
         {tab === 'Listening' && listening.length === 0 && <LibraryEmpty t={tab} onBrowse={onBrowse} />}
       </Screen>
@@ -175,12 +192,8 @@ export function Profile() {
 }
 
 // ── SETTINGS ──
-export function Settings() {
-  const app = useApp()
-  const mob = app.mobile
-  const [t1, setT1] = useState(true), [t2, setT2] = useState(false), [t3, setT3] = useState(true)
-
-  const SettingsRow = ({ label, desc, control }: { label: string; desc?: string; control: React.ReactNode }) => (
+function SettingsRow({ label, desc, control }: { label: string; desc?: string; control: React.ReactNode }) {
+  return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 0', borderTop: '1px solid ' + T.line }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: T.body, fontWeight: 600, fontSize: 14.5, color: T.text }}>{label}</div>
@@ -189,6 +202,12 @@ export function Settings() {
       {control}
     </div>
   )
+}
+
+export function Settings() {
+  const app = useApp()
+  const mob = app.mobile
+  const [t1, setT1] = useState(true), [t2, setT2] = useState(false), [t3, setT3] = useState(true)
 
   return (
     <Screen style={{ padding: mob ? '4px 20px 20px' : '24px 40px 40px' }}>

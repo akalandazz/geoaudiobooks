@@ -16,7 +16,7 @@ from botocore.client import Config
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text, create_engine, func
+from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text, create_engine, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
@@ -37,6 +37,8 @@ MINIO_ENDPOINT    = os.getenv("MINIO_ENDPOINT",    "http://localhost:9000")
 MINIO_ACCESS_KEY  = os.getenv("MINIO_ACCESS_KEY",  "minioadmin")
 MINIO_SECRET_KEY  = os.getenv("MINIO_SECRET_KEY",  "minioadmin")
 MINIO_BUCKET      = os.getenv("MINIO_BUCKET",      "audiobooks")
+BACKEND_URL       = os.getenv("BACKEND_URL",       "http://localhost:8000")
+INTERNAL_API_KEY  = os.getenv("INTERNAL_API_KEY",  "")
 
 # ── Database ──────────────────────────────────────────────────────────────────
 
@@ -77,6 +79,7 @@ class Book(Base):
     blurb         = Column(Text,    default="")
     palette       = Column(JSONB,   default=list)
     motif         = Column(String,  default="lines")
+    cover         = Column(String,  nullable=True)
     chapters = relationship("Chapter", back_populates="book", order_by="Chapter.idx", cascade="all, delete-orphan")
 
 
@@ -114,6 +117,14 @@ def _upload(audio_key: str, file_path: str):
 
 def _audio_key(book_id: str, idx: int) -> str:
     return f"{book_id}/{idx:03d}.mp3"
+
+_IMG_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+
+def _cover_key(book_id: str, ext: str) -> str:
+    return f"{book_id}/cover{ext}"
+
+def _upload_cover(key: str, path: Path, ctype: str) -> None:
+    _s3().upload_file(str(path), MINIO_BUCKET, key, ExtraArgs={"ContentType": ctype})
 
 def _upload_hls(book_id: str, chapter_idx: int, hls_dir: Path) -> tuple[str, list[str]]:
     """Upload HLS playlist + segments. Returns (playlist_key, segment_names)."""
@@ -209,6 +220,7 @@ def add(
         db.commit()
 
     console.print(f"[green]✓[/green] [bold]{data['title']}[/bold] ({data['id']}) added to database.")
+    _emit_book_released(data["id"], data["title"], data["author"])
 
     try:
         _ensure_bucket()
@@ -221,6 +233,22 @@ def add(
     if not to_upload:
         console.print(f"\n[green]Added: {data['title']} — {len(chapters)} chapter(s), no audio files provided.[/green]")
         console.print("[yellow]Use 'booksmanager upload' to add audio later.[/yellow]")
+        if "cover_file" in data:
+            cf = (yaml_dir / data["cover_file"]).resolve()
+            ext = cf.suffix.lower()
+            ctype = _IMG_TYPES.get(ext, "image/jpeg")
+            key = _cover_key(data["id"], ext)
+            try:
+                _upload_cover(key, cf, ctype)
+                with session() as db:
+                    book_row = db.query(Book).filter(Book.id == data["id"]).first()
+                    if book_row:
+                        book_row.cover = key
+                    db.commit()
+                console.print(f"  [dim]↑[/dim] Cover: {cf.name} → {key}")
+            except Exception as e:
+                console.print(f"  [red]✗[/red] Cover upload failed: {e}", highlight=False)
+                console.print("[yellow]Run 'booksmanager cover' to retry.[/yellow]")
         return
 
     uploaded, failures = 0, []
@@ -250,6 +278,23 @@ def add(
         console.print("[yellow]Run 'booksmanager upload' to retry.[/yellow]")
         raise typer.Exit(1)
 
+    if "cover_file" in data:
+        cf = (yaml_dir / data["cover_file"]).resolve()
+        ext = cf.suffix.lower()
+        ctype = _IMG_TYPES.get(ext, "image/jpeg")
+        key = _cover_key(data["id"], ext)
+        try:
+            _upload_cover(key, cf, ctype)
+            with session() as db:
+                book_row = db.query(Book).filter(Book.id == data["id"]).first()
+                if book_row:
+                    book_row.cover = key
+                db.commit()
+            console.print(f"  [dim]↑[/dim] Cover: {cf.name} → {key}")
+        except Exception as e:
+            console.print(f"  [red]✗[/red] Cover upload failed: {e}", highlight=False)
+            console.print("[yellow]Run 'booksmanager cover' to retry.[/yellow]")
+
 
 @app.command("list")
 def list_books(
@@ -278,6 +323,7 @@ def list_books(
     t.add_column("Genre")
     t.add_column("Price",  justify="right")
     t.add_column("Audio",  justify="right")
+    t.add_column("Cover",  justify="center")
 
     for b in books:
         total = totals.get(b.id, 0); up = uploaded.get(b.id, 0)
@@ -285,7 +331,8 @@ def list_books(
         elif up == total:    audio = f"[green]{up}/{total}[/green]"
         elif up > 0:         audio = f"[yellow]{up}/{total}[/yellow]"
         else:                audio = f"[red]{up}/{total}[/red]"
-        t.add_row(b.id, b.title, b.author, b.genre, f"${b.price:.2f}", audio)
+        cover_cell = "[green]✓[/green]" if getattr(b, "cover", None) else "[dim]—[/dim]"
+        t.add_row(b.id, b.title, b.author, b.genre, f"${b.price:.2f}", audio, cover_cell)
 
     console.print(t)
     console.print(f"\nTotal: {len(books)} book{'s' if len(books) != 1 else ''}")
@@ -305,7 +352,8 @@ def show(book_id: str = typer.Argument(..., help="Book slug ID")):
                 "narrator": book.narrator, "genre": book.genre, "year": book.year,
                 "price": book.price, "duration_secs": book.duration_secs,
                 "rating_avg": book.rating_avg, "reviews_count": book.reviews_count,
-                "tags": list(book.tags or []), "blurb": book.blurb or ""}
+                "tags": list(book.tags or []), "blurb": book.blurb or "",
+                "cover": book.cover}
 
     console.print(f"\n[bold]{meta['title']}[/bold]  [dim]({meta['id']})[/dim]")
     for label, val in [
@@ -316,6 +364,7 @@ def show(book_id: str = typer.Argument(..., help="Book slug ID")):
         ("Price",    f"${meta['price']:.2f}"),
         ("Duration", _dur(meta["duration_secs"])),
         ("Rating",   f"{meta['rating_avg']} ({meta['reviews_count']} reviews)"),
+        ("Cover",    meta["cover"] or "—  [dim](generated)[/dim]"),
     ]:
         console.print(f"  {label:<10}: {val}")
     if meta["tags"]:
@@ -455,6 +504,43 @@ def upload(
 
 
 @app.command()
+def cover(
+    book_id: str  = typer.Argument(..., help="Book slug ID"),
+    file:    Path = typer.Argument(..., help="Cover image file (jpg, jpeg, png, webp)"),
+):
+    """Upload or replace the cover image for an existing book."""
+    with session() as db:
+        book = db.query(Book).filter(Book.id == book_id).first()
+        if not book:
+            typer.echo(f"Error: book '{book_id}' not found.", err=True); raise typer.Exit(1)
+
+    if not file.exists():
+        typer.echo(f"Error: file not found: {file}", err=True); raise typer.Exit(1)
+    ext = file.suffix.lower()
+    if ext not in _IMG_TYPES:
+        typer.echo(f"Error: file must be jpg, jpeg, png, or webp (got: {file.suffix!r}).", err=True)
+        raise typer.Exit(1)
+
+    ctype = _IMG_TYPES[ext]
+    key = _cover_key(book_id, ext)
+
+    try:
+        _ensure_bucket()
+        _upload_cover(key, file, ctype)
+    except Exception as e:
+        console.print(f"[red]MinIO error:[/red] {e}"); raise typer.Exit(1)
+
+    with session() as db:
+        book = db.query(Book).filter(Book.id == book_id).first()
+        if book:
+            book.cover = key
+        db.commit()
+
+    console.print(f"  [green]↑[/green] {file.name} → {key}")
+    console.print(f"[green]Cover updated for {book_id}.[/green]")
+
+
+@app.command()
 def delete(
     book_id: str  = typer.Argument(..., help="Book slug ID"),
     yes:     bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
@@ -465,14 +551,25 @@ def delete(
         if not book:
             typer.echo(f"Error: book '{book_id}' not found.", err=True); raise typer.Exit(1)
         n_chapters = len(book.chapters); title = book.title
-        if not yes and not typer.confirm(f"Delete '{title}' ({book_id}) and all {n_chapters} chapters?", default=False):
+        order_item_count = db.execute(
+            text("SELECT COUNT(*) FROM order_items WHERE book_id = :id"), {"id": book_id}
+        ).scalar()
+
+        if not yes and not typer.confirm(
+            f"Delete '{title}' ({book_id}) and all {n_chapters} chapters?"
+            + (f" [{order_item_count} order record(s) will also be removed]" if order_item_count else ""),
+            default=False,
+        ):
             typer.echo("Aborted."); return
-        try:
-            db.delete(book); db.commit()
-        except IntegrityError:
-            db.rollback()
-            typer.echo(f"Error: '{book_id}' is referenced by existing orders or user libraries.", err=True)
-            raise typer.Exit(1)
+
+        db.execute(text("DELETE FROM cart_items WHERE book_id = :id"),     {"id": book_id})
+        db.execute(text("DELETE FROM wishlist_items WHERE book_id = :id"), {"id": book_id})
+        db.execute(text("DELETE FROM bookmarks WHERE book_id = :id"),      {"id": book_id})
+        db.execute(text("DELETE FROM progress WHERE book_id = :id"),       {"id": book_id})
+        db.execute(text("DELETE FROM order_items WHERE book_id = :id"),    {"id": book_id})
+        db.execute(text("UPDATE notifications SET book_id = NULL WHERE book_id = :id"), {"id": book_id})
+        db.delete(book)
+        db.commit()
 
     console.print(f"[green]Deleted: {title} ({book_id})[/green]")
     console.print(f"[dim]Note: audio files in MinIO were not deleted. "
@@ -501,6 +598,15 @@ def _validate_yaml(data: dict, yaml_dir: Path) -> list[str]:
                     errors.append(f"Invalid palette color: {c!r}")
     if "motif" in data and data["motif"] not in VALID_MOTIFS:
         errors.append(f"'motif' must be one of {sorted(VALID_MOTIFS)}")
+    if "cover_file" in data:
+        cf = Path(data["cover_file"])
+        if not cf.is_absolute():
+            cf = (yaml_dir / cf).resolve()
+        ext = cf.suffix.lower()
+        if ext not in _IMG_TYPES:
+            errors.append(f"'cover_file' must be jpg, jpeg, png, or webp (got: {cf.suffix!r})")
+        elif not cf.exists():
+            errors.append(f"'cover_file' not found: {cf}")
     if "chapters" in data:
         chs = data["chapters"]
         if not isinstance(chs, list) or not chs:
@@ -523,6 +629,22 @@ def _validate_yaml(data: dict, yaml_dir: Path) -> list[str]:
                     if not hd.is_dir(): errors.append(f"Chapter {i}: hls_dir not found: {hd}")
                     elif not (hd / "playlist.m3u8").exists(): errors.append(f"Chapter {i}: hls_dir missing playlist.m3u8")
     return errors
+
+
+def _emit_book_released(book_id: str, title: str, author: str, dry_run: bool = False) -> None:
+    if dry_run:
+        return
+    try:
+        import httpx
+        resp = httpx.post(
+            f"{BACKEND_URL}/internal/events",
+            headers={"x-internal-key": INTERNAL_API_KEY},
+            json={"type": "book_released", "payload": {"book_id": book_id, "title": title, "author": author}},
+            timeout=5,
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        console.print(f"[yellow]Warning: notification dispatch failed: {e}[/yellow]")
 
 
 def _preview(data: dict, chapters: list, duration_secs: int):

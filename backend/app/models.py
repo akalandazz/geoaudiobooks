@@ -28,6 +28,9 @@ class User(Base):
     orders = relationship("Order", back_populates="user")
     progress_records = relationship("Progress", back_populates="user", cascade="all, delete-orphan")
     bookmarks = relationship("Bookmark", back_populates="user", cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan",
+                                 foreign_keys="Notification.user_id")
+    notification_reads = relationship("NotificationRead", cascade="all, delete-orphan")
 
 
 class Book(Base):
@@ -47,6 +50,7 @@ class Book(Base):
     blurb = Column(Text, default="")
     palette = Column(JSONB, default=list)
     motif = Column(String, default="lines")
+    cover = Column(String, nullable=True)  # MinIO object key, e.g. "salt/cover.jpg"; null → generated cover
 
     chapters = relationship("Chapter", back_populates="book", order_by="Chapter.idx", cascade="all, delete-orphan")
 
@@ -71,7 +75,7 @@ class CartItem(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
-    book_id = Column(String, ForeignKey("books.id"), nullable=False)
+    book_id = Column(String, ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
 
     user = relationship("User", back_populates="cart_items")
     book = relationship("Book")
@@ -83,7 +87,7 @@ class WishlistItem(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
-    book_id = Column(String, ForeignKey("books.id"), nullable=False)
+    book_id = Column(String, ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
 
     user = relationship("User", back_populates="wishlist_items")
     book = relationship("Book")
@@ -107,7 +111,7 @@ class OrderItem(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     order_id = Column(UUID(as_uuid=False), ForeignKey("orders.id"), nullable=False)
-    book_id = Column(String, ForeignKey("books.id"), nullable=False)
+    book_id = Column(String, ForeignKey("books.id", ondelete="RESTRICT"), nullable=False)
     price_at_purchase = Column(Float, nullable=False)
 
     order = relationship("Order", back_populates="items")
@@ -142,3 +146,38 @@ class Bookmark(Base):
 
     user = relationship("User", back_populates="bookmarks")
     book = relationship("Book")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=new_uuid)
+    audience = Column(String, nullable=False, default="user")  # "all" | "user"
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=True, index=True)
+    type = Column(String, nullable=False, default="general")
+    title = Column(String, nullable=False)
+    body = Column(Text, default="")
+    book_id = Column(String, ForeignKey("books.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    user = relationship("User", back_populates="notifications", foreign_keys=[user_id])
+
+
+class NotificationRead(Base):
+    __tablename__ = "notification_reads"
+    __table_args__ = (UniqueConstraint("user_id", "notification_id"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False, index=True)
+    notification_id = Column(UUID(as_uuid=False), ForeignKey("notifications.id"), nullable=False)
+    read_at = Column(DateTime, default=datetime.utcnow)
+
+
+class IdempotencyKey(Base):
+    __tablename__ = "idempotency_keys"
+
+    key = Column(String, primary_key=True)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False, index=True)
+    endpoint = Column(String, nullable=False)
+    order_id = Column(UUID(as_uuid=False), ForeignKey("orders.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)

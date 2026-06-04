@@ -8,3 +8,5 @@ python-jose[cryptography]
 passlib[argon2]
 python-dotenv
 boto3
+celery[redis]
+redis

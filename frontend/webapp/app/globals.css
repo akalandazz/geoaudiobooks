@@ -168,6 +168,69 @@ input::placeholder {
 .ge-promptfade { animation: ge-promptfade .25s ease both; }
 .ge-promptpop  { animation: ge-promptpop .5s cubic-bezier(.34,1.56,.64,1) both; }
 
+/* ── Player button animations ── */
+
+/* Springy press + hover scale on all icon buttons */
+.ge-tactile {
+  transition: transform .16s cubic-bezier(.34,1.6,.5,1), background .15s, color .15s !important;
+}
+.ge-tactile:hover  { transform: scale(1.1); }
+.ge-tactile:active { transform: scale(0.86); }
+
+/* Play/pause button: springy press, breathing glow + sonar rings while playing */
+.ge-playbtn {
+  position: relative;
+  overflow: visible !important;
+  transition: transform .16s cubic-bezier(.34,1.6,.5,1), box-shadow .25s ease !important;
+}
+.ge-playbtn:hover  { transform: scale(1.07); }
+.ge-playbtn:active { transform: scale(0.91); }
+
+.ge-playbtn[data-playing="true"] {
+  animation: gePBglow 2.2s ease-in-out infinite;
+}
+@keyframes gePBglow {
+  0%, 100% { box-shadow: 0 12px 34px var(--pb-glow, rgba(139,92,246,.55)); }
+  50%       { box-shadow: 0 16px 52px var(--pb-glow, rgba(139,92,246,.80)); }
+}
+
+/* Sonar rings — expand outward while playing */
+.ge-sonar {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--pb-ring, rgba(167,139,250,.6));
+  opacity: 0;
+  pointer-events: none;
+}
+.ge-playbtn[data-playing="true"] .ge-sonar {
+  animation: geSonar 2.4s cubic-bezier(0,0,.2,1) infinite;
+}
+.ge-playbtn[data-playing="true"] .ge-sonar.s2 {
+  animation: geSonar 2.4s cubic-bezier(0,0,.2,1) 1.2s infinite;
+}
+@keyframes geSonar {
+  0%   { transform: scale(1);    opacity: .5; }
+  100% { transform: scale(1.72); opacity: 0;  }
+}
+
+/* Icon pops in on play ↔ pause toggle */
+.ge-iconpop {
+  animation: geIconpop .28s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes geIconpop {
+  0%   { opacity: 0; transform: scale(.62); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Directional nudge feedback for skip/seek buttons */
+.ge-nudge-l { transition: transform .16s cubic-bezier(.34,1.6,.5,1) !important; }
+.ge-nudge-r { transition: transform .16s cubic-bezier(.34,1.6,.5,1) !important; }
+.ge-nudge-l:hover  { transform: translateX(-2px) scale(1.08); }
+.ge-nudge-l:active { transform: translateX(-5px) scale(0.87); }
+.ge-nudge-r:hover  { transform: translateX(2px)  scale(1.08); }
+.ge-nudge-r:active { transform: translateX(5px)  scale(0.87); }
+
 @media (prefers-reduced-motion: reduce) {
   .ge-neb, .ge-particle,
   .ge-float, .ge-floatB, .ge-floatC, .ge-floatD,
@@ -176,4 +239,9 @@ input::placeholder {
   .ge-pre .ge-rev-up, .ge-pre .ge-rev-right, .ge-pre .ge-rev-card { transform: none !important; }
   .ge-parallax { transition: none !important; transform: none !important; }
   .ge-viewenter, .ge-viewenter [data-stagger], .ge-playerin { animation: none !important; }
+  .ge-tactile, .ge-playbtn, .ge-nudge-l, .ge-nudge-r {
+    transition: none !important;
+    animation: none !important;
+  }
+  .ge-iconpop, .ge-sonar { animation: none !important; }
 }

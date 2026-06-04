@@ -1,11 +1,11 @@
 # Backend Spec
 
-**Stack:** FastAPI (sync, no `async`/`await`) · PostgreSQL · SQLAlchemy ORM · Alembic · JWT (HS256, 7-day) · bcrypt · Pydantic v2
+**Stack:** FastAPI (sync, no `async`/`await`) · PostgreSQL · SQLAlchemy ORM · Alembic · JWT (HS256, 7-day) · bcrypt · Pydantic v2 · Celery + Redis (event queue)
 
 ## Running
 
 ```bash
-docker compose up                          # starts postgres:16 + minio + backend on :8000
+docker compose up                          # starts postgres:16 + redis:7 + minio + backend:8000 + celery worker
 alembic upgrade head                       # run migrations (from backend/)
 python -m app.seed                         # seed 12 books + chapters (once)
 http://localhost:8000/docs                 # OpenAPI UI
@@ -29,6 +29,9 @@ backend/
 │   ├── storage.py     # boto3 MinIO client; presign_chapter, upload_chapter, object_key, ensure_bucket_exists
 │   │                  # HLS helpers: hls_playlist_key, hls_segment_key, get_hls_playlist_content,
 │   │                  #              get_segment_stream, upload_hls_chapter
+│   ├── celery_app.py           # Celery instance; broker/backend = REDIS_URL; autodiscovers app.tasks
+│   ├── notifications_service.py # broadcast(), notify_user(), list_for_user(), unread_count(), mark_read(), mark_all_read()
+│   ├── tasks.py                # process_event Celery task — dispatches by event_type → notifications_service
 │   └── routers/
 │       ├── auth.py        # /auth/signup  /auth/signin  /auth/forgot-password
 │       ├── books.py       # /books  /books/{id}  /books/{id}/chapters
@@ -41,7 +44,9 @@ backend/
 │       ├── progress.py    # /progress  /progress/{book_id}
 │       ├── bookmarks.py   # /bookmarks  /bookmarks/{id}
 │       ├── wishlist.py    # /wishlist  /wishlist/{book_id}
-│       └── users.py       # /users/me
+│       ├── users.py       # /users/me
+│       ├── notifications.py # /notifications  /notifications/unread-count  /notifications/{id}/read  /notifications/read-all
+│       └── internal.py    # /internal/events — key-guarded (X-Internal-Key); enqueues Celery task; returns 202
 ├── alembic/           # migrations
 ├── alembic.ini
 ├── requirements.txt
@@ -61,6 +66,9 @@ backend/
 | `order_items` | order_id, book_id, price_at_purchase |
 | `progress` | user_id, book_id, chapter_idx, position_secs — unique pair |
 | `bookmarks` | id (UUID), user_id, book_id, chapter_idx, position_secs, note |
+| `notifications` | id (UUID), audience ("all"\|"user"), user_id (nullable — null for broadcasts), type, title, body, book_id (nullable), created_at — **one row per notification regardless of user count** |
+| `notification_reads` | user_id, notification_id (unique pair), read_at — **lazy read tracking; row exists only when a user reads an item** |
+| `idempotency_keys` | key (String PK), user_id, endpoint, order_id (nullable — replayable result ref), created_at — pruned after 48h by Celery beat |
 
 ## API Summary
 
@@ -77,10 +85,11 @@ All protected routes require `Authorization: Bearer <token>`.
 | GET | /books/{id}/chapters/{chapter_id}/audio | ✓ | 403 if book not owned; 404 if no audio_key; returns `{url, expires_in}` pre-signed MinIO URL |
 | GET | /books/{id}/chapters/{chapter_id}/hls | ✓ | `chapter.idx == 0` (sample) exempt from ownership check; all others 403 if not owned. 404 if `audio_key` is null or not `.m3u8`; returns raw M3U8 (segment paths are relative — frontend rewrites to absolute proxy URLs) |
 | GET | /books/{id}/chapters/{chapter_id}/hls/{filename} | ✓ | `chapter.idx == 0` exempt from ownership check; all others 403 if not owned. Segment proxy — streams `.ts` from MinIO; avoids CORS |
-| GET | /cart | ✓ | includes total |
-| POST | /cart/{book_id} | ✓ | idempotent |
+| GET | /cart | ✓ | includes total (single join query) |
+| POST | /cart/{book_id} | ✓ | idempotent (`ON CONFLICT DO NOTHING`) |
 | DELETE | /cart/{book_id} | ✓ | |
-| POST | /orders/checkout | ✓ | mock Stripe; clears cart, creates order |
+| POST | /cart/from-wishlist/{book_id} | ✓ | atomic move: insert cart + delete wishlist in one txn |
+| POST | /orders/checkout | ✓ | requires `Idempotency-Key` header (UUID); mock Stripe; clears cart, creates order; retries with same key replay original order |
 | GET | /orders | ✓ | purchase history |
 | GET | /library | ✓ | purchased books |
 | GET | /progress | ✓ | all playback positions |
@@ -89,7 +98,20 @@ All protected routes require `Authorization: Bearer <token>`.
 | POST | /bookmarks | ✓ | `{book_id, chapter_idx, position_secs, note}` |
 | DELETE | /bookmarks/{id} | ✓ | |
 | GET | /wishlist | ✓ | |
-| POST | /wishlist/{book_id} | ✓ | idempotent |
+| POST | /wishlist/{book_id} | ✓ | idempotent (`ON CONFLICT DO NOTHING`) |
 | DELETE | /wishlist/{book_id} | ✓ | |
 | GET | /users/me | ✓ | |
 | PATCH | /users/me | ✓ | `{name, is_premium}` |
+| GET | /notifications | ✓ | `?limit=50`; newest-first; `is_read` derived via LEFT JOIN on `notification_reads` |
+| GET | /notifications/unread-count | ✓ | `{ "count": n }` — cheap poll target |
+| POST | /notifications/{id}/read | ✓ | marks one notification read; 404 if not visible to user |
+| POST | /notifications/read-all | ✓ | marks all visible unread notifications read |
+| POST | /internal/events | key | `X-Internal-Key` header required; body `{ type, payload }`; enqueues Celery task; returns 202 `{ "status": "queued" }` |
+
+## Notification architecture
+
+**Fan-out on read** — a broadcast (`audience="all"`) is a single DB INSERT regardless of user count. `is_read` is derived per-user at query time (LEFT JOIN `notification_reads`), never stored on the notification row.
+
+**Visibility rule:** a notification is visible to user *U* if `user_id = U` OR (`audience="all"` AND `created_at >= U.created_at`). The `created_at` guard prevents new signups from seeing the entire broadcast backlog.
+
+**Event pipeline:** `booksmanager add` → `POST /internal/events` → Celery task on Redis → worker calls `notifications_service.broadcast()`. Backend returns 202 immediately; write is async. Add new event types to `tasks.py → process_event`. Call `notify_user()` directly (or dispatch a task) for user-specific notifications.

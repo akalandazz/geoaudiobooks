@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { GE_BOOK_BY_ID, GE_CHAPTERS, Book, Chapter } from './bookdata'
 import * as Api from '../lib/api'
-import type { UserOut } from '../lib/api'
+import type { UserOut, NotificationOut } from '../lib/api'
 import { getAudioEngine } from '../lib/audioEngine'
 
 export type { UserOut }
@@ -48,7 +48,9 @@ export interface AppState {
   nowPlaying: NowPlaying | null;
   openPlayer: (id: string) => void;
   openPlayerAt: (id: string, ch: number) => void;
+  playBook: (id: string) => void;
   closePlayer: () => void;
+  stopPlayer: () => void;
   playerOpen: boolean;
   togglePlay: () => void;
   seekRel: (s: number) => void;
@@ -75,6 +77,7 @@ export interface AppState {
   lastOrder: string[];
   wishlist: string[];
   toggleWishlist: (id: string) => void;
+  moveFromWishlist: (id: string) => void;
   premium: boolean;
   setPremium: (v: boolean) => void;
   search: string;
@@ -87,6 +90,9 @@ export interface AppState {
   setChapters: (bookId: string, chs: Chapter[]) => void;
   buyPrompt: string | null;
   dismissBuyPrompt: () => void;
+  notifications: NotificationOut[];
+  markNotifRead: (id: string) => void;
+  markAllNotifsRead: () => void;
 }
 
 export const AppCtx = createContext<AppState | null>(null)
@@ -121,7 +127,7 @@ interface AppProviderProps {
 }
 
 export function AppProvider({ children, startView = 'home' }: AppProviderProps) {
-  const saved = useMemo(loadState, [])
+  const saved = useMemo(() => loadState(), [])
   const { mobile, w } = useResponsive()
 
   const [authed, setAuthed] = useState(false)
@@ -143,6 +149,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   const [np, setNp] = useState<NowPlaying | null>(saved?.np || null)
   const [playerOpen, setPlayerOpen] = useState(false)
   const [buyPrompt, setBuyPrompt] = useState<string | null>(null)
+  const [notifications, setNotifications] = useState<NotificationOut[]>([])
   const samplePrevPlaying = useRef(false)
 
   // Refs for use inside setInterval/debounce closures
@@ -156,7 +163,10 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   useEffect(() => { booksByIdRef.current = booksById }, [booksById])
   const chaptersByIdRef = useRef(chaptersById)
   useEffect(() => { chaptersByIdRef.current = chaptersById }, [chaptersById])
+  const progressRef = useRef(progress)
+  useEffect(() => { progressRef.current = progress }, [progress])
   const hlsActiveRef = useRef(false)
+  const speedRef = useRef<number>(saved?.np?.speed ?? saved?.speed ?? 1)
 
   // Book lookup helpers — fallback to static seed data
   const getBook = (id: string) => booksById[id] || GE_BOOK_BY_ID[id]
@@ -166,43 +176,50 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     return b ? GE_CHAPTERS(b) : []
   }
 
-  // Persist only playback state and progress (user data comes from API)
+  // Persist playback state, speed, and progress (user data comes from API)
   useEffect(() => {
     const data = {
       np: np ? { bookId: np.bookId, chapter: np.chapter, pos: np.pos, speed: np.speed, playing: false } : null,
       progress,
+      speed: speedRef.current,
     }
     try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch { /* ignore */ }
   }, [np, progress])
 
   // Helper: load all user-specific data from API
   const loadUserData = async () => {
-    const [cartData, libData, wishData, bmsData, progData] = await Promise.all([
+    const [cartData, libData, wishData, bmsData, progData, notifData] = await Promise.all([
       Api.getCart(),
       Api.getLibrary(),
       Api.getWishlist(),
       Api.getBookmarks(),
       Api.getProgress(),
+      Api.getNotifications(),
     ])
-    setCart(cartData.items.map(i => i.book_id))
+    setCart(cartData.items.map(i => i.book.id))
     setLibrary(libData.map(b => b.id))
     setWishlist(wishData.map(b => b.id))
     setBookmarks(bmsData.map(Api.toBookmark))
     const apiProg: Record<string, number> = {}
     progData.forEach(p => { apiProg[p.book_id] = p.position_secs })
     setProgress(prev => ({ ...prev, ...apiProg }))
+    setNotifications(notifData)
+  }
+
+  const refreshBooks = async () => {
+    try {
+      const list = await Api.getBooks({ limit: 100 })
+      const byId: Record<string, Book> = {}
+      list.items.forEach(b => { byId[b.id] = Api.toBook(b) })
+      if (list.items.length > 0) setBooksById(byId)
+    } catch { /* keep GE_BOOK_BY_ID as fallback */ }
   }
 
   // App initialisation
   useEffect(() => {
     const init = async () => {
       // Always load book catalog
-      try {
-        const list = await Api.getBooks({ limit: 100 })
-        const byId: Record<string, Book> = {}
-        list.items.forEach(b => { byId[b.id] = Api.toBook(b) })
-        if (list.items.length > 0) setBooksById(byId)
-      } catch { /* keep GE_BOOK_BY_ID as fallback */ }
+      await refreshBooks()
 
       // Restore session if token exists
       const token = typeof window !== 'undefined' ? localStorage.getItem(LS_TOKEN) : null
@@ -221,7 +238,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       setLoading(false)
     }
     init()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])  
 
   // Wire up audio engine callbacks once
   useEffect(() => {
@@ -240,8 +257,9 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       setNp(p => {
         if (!p) return p
         const chs = chaptersByIdRef.current[p.bookId] || GE_CHAPTERS(booksByIdRef.current[p.bookId] || GE_BOOK_BY_ID[p.bookId])
+        const owned = libraryRef.current.includes(p.bookId)
         const ni = p.chapter + 1
-        if (ni >= chs.length) {
+        if (ni >= chs.length || chapterLocked(ni, owned)) {
           getAudioEngine().pause()
           return { ...p, playing: false }
         }
@@ -252,7 +270,23 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       engine.onTimeUpdate = null
       engine.onEnded = null
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])  
+
+  const fetchAndCacheChapters = (id: string) => {
+    if (chaptersByIdRef.current[id]) return
+    const b = booksByIdRef.current[id] || GE_BOOK_BY_ID[id]
+    if (b) setChaptersById(prev => ({ ...prev, [id]: GE_CHAPTERS(b) }))
+    Api.getChapters(id).then(chs => {
+      setChaptersById(prev => ({ ...prev, [id]: chs.map(Api.toChapter) }))
+    }).catch(() => {})
+  }
+
+  // Ensure chapters are fetched whenever nowPlaying is set (covers the MiniPlayer path
+  // where openPlayer is never called, so fetchAndCacheChapters would otherwise never run).
+  useEffect(() => {
+    if (!np?.bookId || chaptersById[np.bookId]) return
+    fetchAndCacheChapters(np.bookId)
+  }, [np?.bookId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load HLS when the book or chapter changes.
   // Chapter 0 (free sample) is always loadable; other chapters require ownership.
@@ -320,7 +354,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       })
     }, 1000)
     return () => clearInterval(id)
-  }, [np?.playing, np?.bookId, np?.speed]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [np?.playing, np?.bookId, np?.speed])  
 
   // Fire buy prompt the instant a free sample finishes
   useEffect(() => {
@@ -349,14 +383,23 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     return () => clearInterval(id)
   }, [authed])
 
-  const nav = (v: string) => { setHist(h => [...h, view]); setView(v); setPlayerOpen(false) }
+  // Notification poll — every 15 seconds while authenticated
+  useEffect(() => {
+    if (!authed) return
+    const id = setInterval(() => {
+      Api.getNotifications().then(setNotifications).catch(() => {})
+    }, 15000)
+    return () => clearInterval(id)
+  }, [authed])
+
+  const nav = (v: string) => { setHist(h => [...h, view]); setView(v); setPlayerOpen(false); if (v === 'home') refreshBooks() }
   const back = () => setHist(h => {
     if (!h.length) { setView('home'); return h }
     const nv = h[h.length - 1]; setView(nv); return h.slice(0, -1)
   })
   const openDetail = (id: string) => { setBookId(id); nav('detail') }
 
-  const startBook = (id: string, chapter?: number) => {
+  const startBook = (id: string, chapter?: number, play = true) => {
     const b = getBook(id)
     if (!b) return
     const chs = getChapters(id)
@@ -365,28 +408,28 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       let pos: number, ch: number
       if (chapter != null) { ch = chapter; pos = chs[chapter]?.start ?? 0 }
       else if (p && p.bookId === id) {
-        if (!chapterLocked(p.chapter, owned)) getAudioEngine().play()
-        return { ...p, playing: !chapterLocked(p.chapter, owned) }
+        if (play && !chapterLocked(p.chapter, owned)) getAudioEngine().play()
+        return play ? { ...p, playing: !chapterLocked(p.chapter, owned) } : p
       }
-      else if (progress[id]) {
-        pos = progress[id]; ch = 0
+      else if (progressRef.current[id]) {
+        pos = progressRef.current[id]; ch = 0
         for (let i = 0; i < chs.length; i++) if (pos >= chs[i].start) ch = i
       } else { pos = 0; ch = 0 }
       const locked = chapterLocked(ch, owned)
-      return { bookId: id, chapter: ch, pos, playing: !locked, speed: p?.speed || 1 }
+      return { bookId: id, chapter: ch, pos, playing: play && !locked, speed: p?.speed || speedRef.current }
     })
   }
 
-  const fetchAndCacheChapters = (id: string) => {
-    if (chaptersById[id]) return
-    Api.getChapters(id).then(chs => {
-      setChaptersById(prev => ({ ...prev, [id]: chs.map(Api.toChapter) }))
-    }).catch(() => {})
-  }
-
-  const openPlayer = (id: string) => { startBook(id); setPlayerOpen(true); fetchAndCacheChapters(id) }
+  const openPlayer = (id: string) => { startBook(id, undefined, false); setPlayerOpen(true); fetchAndCacheChapters(id) }
   const openPlayerAt = (id: string, ch: number) => { startBook(id, ch); setPlayerOpen(true); fetchAndCacheChapters(id) }
+  const playBook = (id: string) => { startBook(id, undefined, true); setPlayerOpen(true); fetchAndCacheChapters(id) }
   const closePlayer = () => setPlayerOpen(false)
+  const stopPlayer = () => {
+    getAudioEngine().pause()
+    hlsActiveRef.current = false
+    setNp(null)
+    setPlayerOpen(false)
+  }
 
   const togglePlay = () => setNp(p => {
     if (!p) return p
@@ -428,6 +471,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     const chs = getChapters(p.bookId)
     const owned = libraryRef.current.includes(p.bookId)
     const ni = Math.max(0, Math.min(chs.length - 1, p.chapter + d))
+    if (ni === p.chapter) return p
     const locked = chapterLocked(ni, owned)
     if (locked) getAudioEngine().pause()
     return { ...p, chapter: ni, pos: chs[ni]?.start ?? p.pos, playing: locked ? false : p.playing }
@@ -441,6 +485,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     return { ...p, chapter: i, pos: chs[i]?.start ?? p.pos, playing: !locked }
   })
   const setSpeed = (s: number) => {
+    speedRef.current = s
     getAudioEngine().setRate(s)
     setNp(p => p ? { ...p, speed: s } : p)
   }
@@ -448,6 +493,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     if (!p) return p
     const i = SPEEDS.indexOf(p.speed)
     const s = SPEEDS[(i + 1) % SPEEDS.length]
+    speedRef.current = s
     getAudioEngine().setRate(s)
     return { ...p, speed: s }
   })
@@ -527,6 +573,17 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     }
   }
 
+  const moveFromWishlist = (id: string) => {
+    setWishlist(w => w.filter(x => x !== id))
+    setCart(c => c.includes(id) ? c : [...c, id])
+    if (authed) {
+      Api.moveToCart(id).catch(() => {
+        setCart(c => c.filter(x => x !== id))
+        setWishlist(w => w.includes(id) ? w : [...w, id])
+      })
+    }
+  }
+
   const buyNow = (id: string) => {
     setBuyPrompt(null)
     addToCart(id)
@@ -536,7 +593,10 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   const dismissBuyPrompt = () => setBuyPrompt(null)
 
   const placeOrder = async (): Promise<void> => {
-    const order = await Api.checkout()
+    // Generate a stable key for this attempt; reuse it on any retry within this
+    // call so a double-tap or network retry never creates a duplicate order.
+    const key = crypto.randomUUID()
+    const order = await Api.checkout(key)
     const newIds = order.items.map(i => i.book.id)
     setLibrary(l => [...new Set([...l, ...newIds])])
     setLastOrder(newIds)
@@ -574,6 +634,16 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     setView('home')
   }
 
+  const markNotifRead = (id: string) => {
+    setNotifications(ns => ns.map(n => n.id === id ? { ...n, is_read: true } : n))
+    Api.markNotificationRead(id).catch(() => {})
+  }
+
+  const markAllNotifsRead = () => {
+    setNotifications(ns => ns.map(n => ({ ...n, is_read: true })))
+    Api.markAllNotificationsRead().catch(() => {})
+  }
+
   const signOut = () => {
     localStorage.removeItem(LS_TOKEN)
     Api.setToken(null)
@@ -585,6 +655,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     setLibrary([])
     setWishlist([])
     setBookmarks([])
+    setNotifications([])
     setNp(p => p ? { ...p, playing: false } : p)
   }
 
@@ -601,14 +672,15 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
 
   const value: AppState = {
     mobile, w, authed, loading, user, booksById: allBooks, chaptersById, view, bookId, nav, back, openDetail,
-    nowPlaying: np, openPlayer, openPlayerAt, closePlayer, playerOpen,
+    nowPlaying: np, openPlayer, openPlayerAt, playBook, closePlayer, stopPlayer, playerOpen,
     togglePlay, seekRel, seekPct, skipChapter, goChapter, setSpeed, cycleSpeed,
     bookmarks, addBookmark, removeBookmark, goBookmark,
     sleep, setSleepTimer, cancelSleep,
     cart, addToCart, removeFromCart, inCart, library, isOwned, buyNow, placeOrder, lastOrder,
-    wishlist, toggleWishlist, premium, setPremium, search, setSearch,
+    wishlist, toggleWishlist, moveFromWishlist, premium, setPremium, search, setSearch,
     progress, continueBooks, signIn, signOut, signUp, setChapters,
     buyPrompt, dismissBuyPrompt,
+    notifications, markNotifRead, markAllNotifsRead,
   }
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>

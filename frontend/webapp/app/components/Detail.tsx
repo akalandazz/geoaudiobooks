@@ -59,10 +59,25 @@ function BookMeta({ b, chapters, owned, inCart, mob, onPlay, onBuy, onCart, onWi
 
 export function Detail() {
   const app = useApp()
-  const b = app.booksById[app.bookId]
-  const [tab, setTab] = useState('Overview')
+  const [fetchedBook, setFetchedBook] = useState<Book | null>(null)
+  const [fetchError, setFetchError] = useState(false)
 
-  useEffect(() => { setTab('Overview') }, [app.bookId])
+  const catalogBook = app.booksById[app.bookId]
+  const b = catalogBook || (fetchedBook?.id === app.bookId ? fetchedBook : null)
+
+  // Fetch book from API when it's not in the catalog (e.g. opened from a notification for a newly-added book)
+  useEffect(() => {
+    setFetchedBook(null)
+    setFetchError(false)
+    if (app.booksById[app.bookId] || !app.bookId) return
+    Api.getBook(app.bookId)
+      .then(out => setFetchedBook(Api.toBook(out)))
+      .catch(() => setFetchError(true))
+  }, [app.bookId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [tabState, setTabState] = useState({ bookId: app.bookId, tab: 'Overview' })
+  const tab = tabState.bookId === app.bookId ? tabState.tab : 'Overview'
+  const setTab = (t: string) => setTabState({ bookId: app.bookId, tab: t })
 
   // Fetch real chapters from API and cache them in AppContext
   useEffect(() => {
@@ -70,9 +85,18 @@ export function Detail() {
     Api.getChapters(b.id)
       .then(chs => { app.setChapters(b.id, chs.map(Api.toChapter)) })
       .catch(() => { /* keep GE_CHAPTERS fallback */ })
-  }, [app.bookId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [app.bookId, b?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!b) return null
+  if (!b) {
+    return (
+      <Screen style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {fetchError
+          ? <div style={{ color: T.mut, fontFamily: T.body, fontSize: 15 }}>Book not found.</div>
+          : <div style={{ color: T.dim, fontFamily: T.body, fontSize: 14 }}>Loading…</div>
+        }
+      </Screen>
+    )
+  }
 
   // Chapters: use cached API data or fall back to generated
   const chapters = app.chaptersById[b.id] || GE_CHAPTERS(b)
@@ -91,7 +115,7 @@ export function Detail() {
           <GEIcon.chevR s={16} style={{ transform: 'rotate(180deg)' }} />Back
         </div>
         <div style={{ display: 'flex', flexDirection: mob ? 'column' : 'row', gap: mob ? 22 : 44, alignItems: mob ? 'center' : 'flex-start' }}>
-          <BookCover book={b} w={mob ? 220 : 300} radius={16} style={{ boxShadow: '0 30px 70px rgba(0,0,0,0.55)', flexShrink: 0 }} />
+          <BookCover book={b} w={mob ? 220 : 300} radius={16} style={{ boxShadow: '0 30px 70px rgba(0,0,0,0.55)', flexShrink: 0, height: mob ? 330 : 450 }} />
           <BookMeta
             b={b} chapters={chapters} owned={owned} inCart={inCart} mob={mob}
             onPlay={() => app.openPlayer(b.id)}

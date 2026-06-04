@@ -10,6 +10,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
@@ -38,9 +43,28 @@ services:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: audiobooks
+      REDIS_URL: redis://redis:6379/0
+      INTERNAL_API_KEY: changeme-internal-key
     depends_on:
       - db
       - minio
+      - redis
+    volumes:
+      - ./backend:/app
+
+  worker:
+    build: ./backend
+    command: celery -A app.celery_app.celery worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/geoaudiobooks
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: audiobooks
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
     volumes:
       - ./backend:/app
 
@@ -61,9 +85,12 @@ services:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: audiobooks
+      BACKEND_URL: http://backend:8000
+      INTERNAL_API_KEY: changeme-internal-key
     depends_on:
       - db
       - minio
+      - backend
     volumes:
       - ./:/workspace
     working_dir: /workspace
@@ -71,6 +98,19 @@ services:
     tty: true
     profiles:
       - tools
+
+  e2e:
+    build: ./e2e
+    command: npx playwright test --reporter=line
+    network_mode: host
+    environment:
+      BASE_URL: http://localhost:3000
+      BACKEND_URL: http://localhost:8000
+    depends_on:
+      - frontend
+      - backend
+    profiles:
+      - e2e
 
 volumes:
   pgdata:

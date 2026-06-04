@@ -1,7 +1,9 @@
+import mimetypes
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from app import models, schemas
+from app import models, schemas, storage
 from app.deps import get_db
 
 router = APIRouter(prefix="/books", tags=["books"])
@@ -65,3 +67,20 @@ def get_chapters(book_id: str, db: Session = Depends(get_db)):
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     return book.chapters
+
+
+@router.get("/{book_id}/cover")
+def get_book_cover(book_id: str, db: Session = Depends(get_db)):
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not book or not book.cover:
+        raise HTTPException(status_code=404, detail="Cover not available")
+    try:
+        stream = storage.get_cover_stream(book.cover)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Cover not found in storage")
+    media_type = mimetypes.guess_type(book.cover)[0] or "application/octet-stream"
+    return StreamingResponse(
+        stream,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )

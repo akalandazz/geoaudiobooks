@@ -46,6 +46,18 @@ def object_key(book_id: str, chapter_idx: int) -> str:
     return f"{book_id}/{chapter_idx:03d}.mp3"
 
 
+def cover_object_key(book_id: str, ext: str) -> str:
+    return f"{book_id}/cover{ext}"
+
+
+def upload_cover(cover_key: str, file_path: str, content_type: str) -> None:
+    _client().upload_file(file_path, _BUCKET, cover_key, ExtraArgs={"ContentType": content_type})
+
+
+def get_cover_stream(cover_key: str):
+    return _client().get_object(Bucket=_BUCKET, Key=cover_key)["Body"]
+
+
 # ── HLS helpers ───────────────────────────────────────────────────────────────
 
 def hls_playlist_key(book_id: str, chapter_idx: int) -> str:

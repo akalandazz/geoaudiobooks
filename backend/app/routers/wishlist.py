@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app import models, schemas
 from app.deps import get_db, get_current_user
 
@@ -15,24 +15,22 @@ def get_wishlist(db: Session = Depends(get_db), user: models.User = Depends(get_
 
 @router.post("/{book_id}", status_code=201)
 def add_to_wishlist(book_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    if not db.query(models.Book).filter(models.Book.id == book_id).first():
+    if not db.query(models.Book.id).filter(models.Book.id == book_id).first():
         raise HTTPException(status_code=404, detail="Book not found")
-    item = models.WishlistItem(user_id=user.id, book_id=book_id)
-    db.add(item)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
+    db.execute(
+        pg_insert(models.WishlistItem)
+        .values(user_id=user.id, book_id=book_id)
+        .on_conflict_do_nothing(index_elements=["user_id", "book_id"])
+    )
+    db.commit()
     return {"message": "Added to wishlist"}
 
 
 @router.delete("/{book_id}")
 def remove_from_wishlist(book_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    item = db.query(models.WishlistItem).filter(
+    db.query(models.WishlistItem).filter(
         models.WishlistItem.user_id == user.id,
         models.WishlistItem.book_id == book_id,
-    ).first()
-    if item:
-        db.delete(item)
-        db.commit()
+    ).delete(synchronize_session=False)
+    db.commit()
     return {"message": "Removed from wishlist"}
