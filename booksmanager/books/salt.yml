@@ -24,4 +24,4 @@ motif: wave
 chapters:
   - title: "Introduction"
     length_secs: 73
-    hls_dir: media
+    hls_dir: media/testVoice

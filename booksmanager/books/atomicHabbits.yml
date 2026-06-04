@@ -28,8 +28,8 @@ motif: soft
 chapters:
   - title: "Introduction"
     length_secs: 73
-    hls_dir: media
+    hls_dir: media/testVoice
 
   - title: "The Surprising Power of Atomic Habits"
     length_secs: 73
-    hls_dir: media
+    hls_dir: media/testVoice
