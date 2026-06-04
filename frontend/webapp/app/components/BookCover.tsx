@@ -74,13 +74,28 @@ export function BookCover({ book, w = 180, radius = 10, style = {}, onClick }: B
   const ew = measuredW // effective width for font calculations
   const fs = (m: number) => Math.round(ew * m)
 
+  const containerStyle: React.CSSProperties = {
+    width: w, height: w, borderRadius: radius, position: 'relative', overflow: 'hidden',
+    background: `linear-gradient(150deg, ${c[0]} 0%, ${c[1]} 100%)`,
+    boxShadow: '0 1px 0 rgba(255,255,255,0.06) inset',
+    flexShrink: 0, cursor: onClick ? 'pointer' : undefined, ...style,
+  }
+
+  if (book.cover) {
+    return (
+      <div ref={ref} onClick={onClick} style={containerStyle}>
+        <img
+          src={book.cover}
+          alt={`${book.title} cover`}
+          loading="lazy"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+      </div>
+    )
+  }
+
   return (
-    <div ref={ref} onClick={onClick} style={{
-      width: w, height: w, borderRadius: radius, position: 'relative', overflow: 'hidden',
-      background: `linear-gradient(150deg, ${c[0]} 0%, ${c[1]} 100%)`,
-      boxShadow: '0 1px 0 rgba(255,255,255,0.06) inset',
-      flexShrink: 0, cursor: onClick ? 'pointer' : undefined, ...style,
-    }}>
+    <div ref={ref} onClick={onClick} style={containerStyle}>
       <CoverMotif motif={book.motif} c={c} />
       <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 90% at 50% 0%, transparent 40%, rgba(0,0,0,0.35) 100%)' }} />
       <div style={{ position: 'absolute', inset: 0, padding: ew * 0.09, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>

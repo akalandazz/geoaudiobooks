@@ -298,7 +298,7 @@ export function BookCard({ b, w = 158, progress, onClick }: { b: Book; w?: numbe
   return (
     <div style={{ width: w, flexShrink: 0, cursor: 'pointer' }} onClick={go} className="ge-card">
       <div style={{ position: 'relative' }}>
-        <BookCover book={b} w={typeof w === 'number' ? w : undefined} radius={12} style={typeof w === 'string' ? { width: '100%', aspectRatio: '1', height: 'auto' } : undefined} />
+        <BookCover book={b} w={typeof w === 'number' ? w : undefined} radius={12} style={typeof w === 'string' ? { width: '100%', aspectRatio: '2/3', height: 'auto' } : { height: Math.round((typeof w === 'number' ? w : 158) * 1.5) }} />
         <button onClick={e => { e.stopPropagation(); app.playBook(b.id) }}
           className="ge-cardplay"
           style={{ position: 'absolute', right: 8, bottom: 8, width: 40, height: 40, borderRadius: 20, background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 16px rgba(139,92,246,0.5)', border: 'none', cursor: 'pointer', opacity: 0, transform: 'translateY(6px)', transition: 'all .18s' }}>

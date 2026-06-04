@@ -71,6 +71,7 @@ class BookOut(BaseModel):
     blurb: str
     palette: List[str]
     motif: str
+    cover: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

@@ -20,6 +20,7 @@ palette:
   - "#8B6B45"
   - "#2C1810"
 motif: wave
+cover_file: media/cover.jpg
 
 chapters:
   - title: "Introduction"

@@ -206,16 +206,20 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     setNotifications(notifData)
   }
 
+  const refreshBooks = async () => {
+    try {
+      const list = await Api.getBooks({ limit: 100 })
+      const byId: Record<string, Book> = {}
+      list.items.forEach(b => { byId[b.id] = Api.toBook(b) })
+      if (list.items.length > 0) setBooksById(byId)
+    } catch { /* keep GE_BOOK_BY_ID as fallback */ }
+  }
+
   // App initialisation
   useEffect(() => {
     const init = async () => {
       // Always load book catalog
-      try {
-        const list = await Api.getBooks({ limit: 100 })
-        const byId: Record<string, Book> = {}
-        list.items.forEach(b => { byId[b.id] = Api.toBook(b) })
-        if (list.items.length > 0) setBooksById(byId)
-      } catch { /* keep GE_BOOK_BY_ID as fallback */ }
+      await refreshBooks()
 
       // Restore session if token exists
       const token = typeof window !== 'undefined' ? localStorage.getItem(LS_TOKEN) : null
@@ -388,7 +392,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     return () => clearInterval(id)
   }, [authed])
 
-  const nav = (v: string) => { setHist(h => [...h, view]); setView(v); setPlayerOpen(false) }
+  const nav = (v: string) => { setHist(h => [...h, view]); setView(v); setPlayerOpen(false); if (v === 'home') refreshBooks() }
   const back = () => setHist(h => {
     if (!h.length) { setView('home'); return h }
     const nv = h[h.length - 1]; setView(nv); return h.slice(0, -1)

@@ -50,6 +50,7 @@ class Book(Base):
     blurb = Column(Text, default="")
     palette = Column(JSONB, default=list)
     motif = Column(String, default="lines")
+    cover = Column(String, nullable=True)  # MinIO object key, e.g. "salt/cover.jpg"; null → generated cover
 
     chapters = relationship("Chapter", back_populates="book", order_by="Chapter.idx", cascade="all, delete-orphan")
 

@@ -115,7 +115,7 @@ export function Detail() {
           <GEIcon.chevR s={16} style={{ transform: 'rotate(180deg)' }} />Back
         </div>
         <div style={{ display: 'flex', flexDirection: mob ? 'column' : 'row', gap: mob ? 22 : 44, alignItems: mob ? 'center' : 'flex-start' }}>
-          <BookCover book={b} w={mob ? 220 : 300} radius={16} style={{ boxShadow: '0 30px 70px rgba(0,0,0,0.55)', flexShrink: 0 }} />
+          <BookCover book={b} w={mob ? 220 : 300} radius={16} style={{ boxShadow: '0 30px 70px rgba(0,0,0,0.55)', flexShrink: 0, height: mob ? 330 : 450 }} />
           <BookMeta
             b={b} chapters={chapters} owned={owned} inCart={inCart} mob={mob}
             onPlay={() => app.openPlayer(b.id)}
