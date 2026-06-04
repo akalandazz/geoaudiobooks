@@ -68,6 +68,7 @@ backend/
 | `bookmarks` | id (UUID), user_id, book_id, chapter_idx, position_secs, note |
 | `notifications` | id (UUID), audience ("all"\|"user"), user_id (nullable — null for broadcasts), type, title, body, book_id (nullable), created_at — **one row per notification regardless of user count** |
 | `notification_reads` | user_id, notification_id (unique pair), read_at — **lazy read tracking; row exists only when a user reads an item** |
+| `idempotency_keys` | key (String PK), user_id, endpoint, order_id (nullable — replayable result ref), created_at — pruned after 48h by Celery beat |
 
 ## API Summary
 
@@ -84,10 +85,11 @@ All protected routes require `Authorization: Bearer <token>`.
 | GET | /books/{id}/chapters/{chapter_id}/audio | ✓ | 403 if book not owned; 404 if no audio_key; returns `{url, expires_in}` pre-signed MinIO URL |
 | GET | /books/{id}/chapters/{chapter_id}/hls | ✓ | `chapter.idx == 0` (sample) exempt from ownership check; all others 403 if not owned. 404 if `audio_key` is null or not `.m3u8`; returns raw M3U8 (segment paths are relative — frontend rewrites to absolute proxy URLs) |
 | GET | /books/{id}/chapters/{chapter_id}/hls/{filename} | ✓ | `chapter.idx == 0` exempt from ownership check; all others 403 if not owned. Segment proxy — streams `.ts` from MinIO; avoids CORS |
-| GET | /cart | ✓ | includes total |
-| POST | /cart/{book_id} | ✓ | idempotent |
+| GET | /cart | ✓ | includes total (single join query) |
+| POST | /cart/{book_id} | ✓ | idempotent (`ON CONFLICT DO NOTHING`) |
 | DELETE | /cart/{book_id} | ✓ | |
-| POST | /orders/checkout | ✓ | mock Stripe; clears cart, creates order |
+| POST | /cart/from-wishlist/{book_id} | ✓ | atomic move: insert cart + delete wishlist in one txn |
+| POST | /orders/checkout | ✓ | requires `Idempotency-Key` header (UUID); mock Stripe; clears cart, creates order; retries with same key replay original order |
 | GET | /orders | ✓ | purchase history |
 | GET | /library | ✓ | purchased books |
 | GET | /progress | ✓ | all playback positions |
@@ -96,7 +98,7 @@ All protected routes require `Authorization: Bearer <token>`.
 | POST | /bookmarks | ✓ | `{book_id, chapter_idx, position_secs, note}` |
 | DELETE | /bookmarks/{id} | ✓ | |
 | GET | /wishlist | ✓ | |
-| POST | /wishlist/{book_id} | ✓ | idempotent |
+| POST | /wishlist/{book_id} | ✓ | idempotent (`ON CONFLICT DO NOTHING`) |
 | DELETE | /wishlist/{book_id} | ✓ | |
 | GET | /users/me | ✓ | |
 | PATCH | /users/me | ✓ | `{name, is_premium}` |

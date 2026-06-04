@@ -77,6 +77,7 @@ export interface AppState {
   lastOrder: string[];
   wishlist: string[];
   toggleWishlist: (id: string) => void;
+  moveFromWishlist: (id: string) => void;
   premium: boolean;
   setPremium: (v: boolean) => void;
   search: string;
@@ -195,7 +196,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       Api.getProgress(),
       Api.getNotifications(),
     ])
-    setCart(cartData.items.map(i => i.book_id))
+    setCart(cartData.items.map(i => i.book.id))
     setLibrary(libData.map(b => b.id))
     setWishlist(wishData.map(b => b.id))
     setBookmarks(bmsData.map(Api.toBookmark))
@@ -568,6 +569,17 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     }
   }
 
+  const moveFromWishlist = (id: string) => {
+    setWishlist(w => w.filter(x => x !== id))
+    setCart(c => c.includes(id) ? c : [...c, id])
+    if (authed) {
+      Api.moveToCart(id).catch(() => {
+        setCart(c => c.filter(x => x !== id))
+        setWishlist(w => w.includes(id) ? w : [...w, id])
+      })
+    }
+  }
+
   const buyNow = (id: string) => {
     setBuyPrompt(null)
     addToCart(id)
@@ -577,7 +589,10 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   const dismissBuyPrompt = () => setBuyPrompt(null)
 
   const placeOrder = async (): Promise<void> => {
-    const order = await Api.checkout()
+    // Generate a stable key for this attempt; reuse it on any retry within this
+    // call so a double-tap or network retry never creates a duplicate order.
+    const key = crypto.randomUUID()
+    const order = await Api.checkout(key)
     const newIds = order.items.map(i => i.book.id)
     setLibrary(l => [...new Set([...l, ...newIds])])
     setLastOrder(newIds)
@@ -658,7 +673,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     bookmarks, addBookmark, removeBookmark, goBookmark,
     sleep, setSleepTimer, cancelSleep,
     cart, addToCart, removeFromCart, inCart, library, isOwned, buyNow, placeOrder, lastOrder,
-    wishlist, toggleWishlist, premium, setPremium, search, setSearch,
+    wishlist, toggleWishlist, moveFromWishlist, premium, setPremium, search, setSearch,
     progress, continueBooks, signIn, signOut, signUp, setChapters,
     buyPrompt, dismissBuyPrompt,
     notifications, markNotifRead, markAllNotifsRead,

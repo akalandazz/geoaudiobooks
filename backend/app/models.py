@@ -74,7 +74,7 @@ class CartItem(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
-    book_id = Column(String, ForeignKey("books.id"), nullable=False)
+    book_id = Column(String, ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
 
     user = relationship("User", back_populates="cart_items")
     book = relationship("Book")
@@ -86,7 +86,7 @@ class WishlistItem(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
-    book_id = Column(String, ForeignKey("books.id"), nullable=False)
+    book_id = Column(String, ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
 
     user = relationship("User", back_populates="wishlist_items")
     book = relationship("Book")
@@ -110,7 +110,7 @@ class OrderItem(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     order_id = Column(UUID(as_uuid=False), ForeignKey("orders.id"), nullable=False)
-    book_id = Column(String, ForeignKey("books.id"), nullable=False)
+    book_id = Column(String, ForeignKey("books.id", ondelete="RESTRICT"), nullable=False)
     price_at_purchase = Column(Float, nullable=False)
 
     order = relationship("Order", back_populates="items")
@@ -170,3 +170,13 @@ class NotificationRead(Base):
     user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False, index=True)
     notification_id = Column(UUID(as_uuid=False), ForeignKey("notifications.id"), nullable=False)
     read_at = Column(DateTime, default=datetime.utcnow)
+
+
+class IdempotencyKey(Base):
+    __tablename__ = "idempotency_keys"
+
+    key = Column(String, primary_key=True)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False, index=True)
+    endpoint = Column(String, nullable=False)
+    order_id = Column(UUID(as_uuid=False), ForeignKey("orders.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
