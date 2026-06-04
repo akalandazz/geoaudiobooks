@@ -16,7 +16,7 @@ from botocore.client import Config
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text, create_engine, func
+from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text, create_engine, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
@@ -468,14 +468,25 @@ def delete(
         if not book:
             typer.echo(f"Error: book '{book_id}' not found.", err=True); raise typer.Exit(1)
         n_chapters = len(book.chapters); title = book.title
-        if not yes and not typer.confirm(f"Delete '{title}' ({book_id}) and all {n_chapters} chapters?", default=False):
+        order_item_count = db.execute(
+            text("SELECT COUNT(*) FROM order_items WHERE book_id = :id"), {"id": book_id}
+        ).scalar()
+
+        if not yes and not typer.confirm(
+            f"Delete '{title}' ({book_id}) and all {n_chapters} chapters?"
+            + (f" [{order_item_count} order record(s) will also be removed]" if order_item_count else ""),
+            default=False,
+        ):
             typer.echo("Aborted."); return
-        try:
-            db.delete(book); db.commit()
-        except IntegrityError:
-            db.rollback()
-            typer.echo(f"Error: '{book_id}' is referenced by existing orders or user libraries.", err=True)
-            raise typer.Exit(1)
+
+        db.execute(text("DELETE FROM cart_items WHERE book_id = :id"),     {"id": book_id})
+        db.execute(text("DELETE FROM wishlist_items WHERE book_id = :id"), {"id": book_id})
+        db.execute(text("DELETE FROM bookmarks WHERE book_id = :id"),      {"id": book_id})
+        db.execute(text("DELETE FROM progress WHERE book_id = :id"),       {"id": book_id})
+        db.execute(text("DELETE FROM order_items WHERE book_id = :id"),    {"id": book_id})
+        db.execute(text("UPDATE notifications SET book_id = NULL WHERE book_id = :id"), {"id": book_id})
+        db.delete(book)
+        db.commit()
 
     console.print(f"[green]Deleted: {title} ({book_id})[/green]")
     console.print(f"[dim]Note: audio files in MinIO were not deleted. "

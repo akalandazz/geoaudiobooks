@@ -59,7 +59,22 @@ function BookMeta({ b, chapters, owned, inCart, mob, onPlay, onBuy, onCart, onWi
 
 export function Detail() {
   const app = useApp()
-  const b = app.booksById[app.bookId]
+  const [fetchedBook, setFetchedBook] = useState<Book | null>(null)
+  const [fetchError, setFetchError] = useState(false)
+
+  const catalogBook = app.booksById[app.bookId]
+  const b = catalogBook || (fetchedBook?.id === app.bookId ? fetchedBook : null)
+
+  // Fetch book from API when it's not in the catalog (e.g. opened from a notification for a newly-added book)
+  useEffect(() => {
+    setFetchedBook(null)
+    setFetchError(false)
+    if (app.booksById[app.bookId] || !app.bookId) return
+    Api.getBook(app.bookId)
+      .then(out => setFetchedBook(Api.toBook(out)))
+      .catch(() => setFetchError(true))
+  }, [app.bookId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [tabState, setTabState] = useState({ bookId: app.bookId, tab: 'Overview' })
   const tab = tabState.bookId === app.bookId ? tabState.tab : 'Overview'
   const setTab = (t: string) => setTabState({ bookId: app.bookId, tab: t })
@@ -70,9 +85,18 @@ export function Detail() {
     Api.getChapters(b.id)
       .then(chs => { app.setChapters(b.id, chs.map(Api.toChapter)) })
       .catch(() => { /* keep GE_CHAPTERS fallback */ })
-  }, [app.bookId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [app.bookId, b?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!b) return null
+  if (!b) {
+    return (
+      <Screen style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {fetchError
+          ? <div style={{ color: T.mut, fontFamily: T.body, fontSize: 15 }}>Book not found.</div>
+          : <div style={{ color: T.dim, fontFamily: T.body, fontSize: 14 }}>Loading…</div>
+        }
+      </Screen>
+    )
+  }
 
   // Chapters: use cached API data or fall back to generated
   const chapters = app.chaptersById[b.id] || GE_CHAPTERS(b)
