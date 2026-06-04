@@ -143,3 +143,20 @@ class BookmarkOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+
+class NotificationOut(BaseModel):
+    id: str
+    type: str
+    title: str
+    body: str
+    book_id: Optional[str] = None
+    is_read: bool
+    created_at: datetime
+
+
+class EventIn(BaseModel):
+    type: str
+    payload: dict

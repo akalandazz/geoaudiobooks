@@ -37,6 +37,8 @@ MINIO_ENDPOINT    = os.getenv("MINIO_ENDPOINT",    "http://localhost:9000")
 MINIO_ACCESS_KEY  = os.getenv("MINIO_ACCESS_KEY",  "minioadmin")
 MINIO_SECRET_KEY  = os.getenv("MINIO_SECRET_KEY",  "minioadmin")
 MINIO_BUCKET      = os.getenv("MINIO_BUCKET",      "audiobooks")
+BACKEND_URL       = os.getenv("BACKEND_URL",       "http://localhost:8000")
+INTERNAL_API_KEY  = os.getenv("INTERNAL_API_KEY",  "")
 
 # ── Database ──────────────────────────────────────────────────────────────────
 
@@ -209,6 +211,7 @@ def add(
         db.commit()
 
     console.print(f"[green]✓[/green] [bold]{data['title']}[/bold] ({data['id']}) added to database.")
+    _emit_book_released(data["id"], data["title"], data["author"])
 
     try:
         _ensure_bucket()
@@ -523,6 +526,22 @@ def _validate_yaml(data: dict, yaml_dir: Path) -> list[str]:
                     if not hd.is_dir(): errors.append(f"Chapter {i}: hls_dir not found: {hd}")
                     elif not (hd / "playlist.m3u8").exists(): errors.append(f"Chapter {i}: hls_dir missing playlist.m3u8")
     return errors
+
+
+def _emit_book_released(book_id: str, title: str, author: str, dry_run: bool = False) -> None:
+    if dry_run:
+        return
+    try:
+        import httpx
+        resp = httpx.post(
+            f"{BACKEND_URL}/internal/events",
+            headers={"x-internal-key": INTERNAL_API_KEY},
+            json={"type": "book_released", "payload": {"book_id": book_id, "title": title, "author": author}},
+            timeout=5,
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        console.print(f"[yellow]Warning: notification dispatch failed: {e}[/yellow]")
 
 
 def _preview(data: dict, chapters: list, duration_secs: int):

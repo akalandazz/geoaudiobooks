@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { GE_BOOK_BY_ID, GE_CHAPTERS, Book, Chapter } from './bookdata'
 import * as Api from '../lib/api'
-import type { UserOut } from '../lib/api'
+import type { UserOut, NotificationOut } from '../lib/api'
 import { getAudioEngine } from '../lib/audioEngine'
 
 export type { UserOut }
@@ -89,6 +89,9 @@ export interface AppState {
   setChapters: (bookId: string, chs: Chapter[]) => void;
   buyPrompt: string | null;
   dismissBuyPrompt: () => void;
+  notifications: NotificationOut[];
+  markNotifRead: (id: string) => void;
+  markAllNotifsRead: () => void;
 }
 
 export const AppCtx = createContext<AppState | null>(null)
@@ -145,6 +148,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
   const [np, setNp] = useState<NowPlaying | null>(saved?.np || null)
   const [playerOpen, setPlayerOpen] = useState(false)
   const [buyPrompt, setBuyPrompt] = useState<string | null>(null)
+  const [notifications, setNotifications] = useState<NotificationOut[]>([])
   const samplePrevPlaying = useRef(false)
 
   // Refs for use inside setInterval/debounce closures
@@ -183,12 +187,13 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
 
   // Helper: load all user-specific data from API
   const loadUserData = async () => {
-    const [cartData, libData, wishData, bmsData, progData] = await Promise.all([
+    const [cartData, libData, wishData, bmsData, progData, notifData] = await Promise.all([
       Api.getCart(),
       Api.getLibrary(),
       Api.getWishlist(),
       Api.getBookmarks(),
       Api.getProgress(),
+      Api.getNotifications(),
     ])
     setCart(cartData.items.map(i => i.book_id))
     setLibrary(libData.map(b => b.id))
@@ -197,6 +202,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     const apiProg: Record<string, number> = {}
     progData.forEach(p => { apiProg[p.book_id] = p.position_secs })
     setProgress(prev => ({ ...prev, ...apiProg }))
+    setNotifications(notifData)
   }
 
   // App initialisation
@@ -360,6 +366,15 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
         Api.updateProgress(cur.bookId, cur.chapter, cur.pos).catch(() => {})
       }
     }, 10000)
+    return () => clearInterval(id)
+  }, [authed])
+
+  // Notification poll — every 15 seconds while authenticated
+  useEffect(() => {
+    if (!authed) return
+    const id = setInterval(() => {
+      Api.getNotifications().then(setNotifications).catch(() => {})
+    }, 15000)
     return () => clearInterval(id)
   }, [authed])
 
@@ -600,6 +615,16 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     setView('home')
   }
 
+  const markNotifRead = (id: string) => {
+    setNotifications(ns => ns.map(n => n.id === id ? { ...n, is_read: true } : n))
+    Api.markNotificationRead(id).catch(() => {})
+  }
+
+  const markAllNotifsRead = () => {
+    setNotifications(ns => ns.map(n => ({ ...n, is_read: true })))
+    Api.markAllNotificationsRead().catch(() => {})
+  }
+
   const signOut = () => {
     localStorage.removeItem(LS_TOKEN)
     Api.setToken(null)
@@ -611,6 +636,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     setLibrary([])
     setWishlist([])
     setBookmarks([])
+    setNotifications([])
     setNp(p => p ? { ...p, playing: false } : p)
   }
 
@@ -635,6 +661,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
     wishlist, toggleWishlist, premium, setPremium, search, setSearch,
     progress, continueBooks, signIn, signOut, signUp, setChapters,
     buyPrompt, dismissBuyPrompt,
+    notifications, markNotifRead, markAllNotifsRead,
   }
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>

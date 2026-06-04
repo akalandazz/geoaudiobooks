@@ -61,7 +61,8 @@ Typed fetch wrapper around the FastAPI backend (`NEXT_PUBLIC_API_URL`, default `
 - `ApiError` — thrown on non-2xx; has `.status: number`
 - `ChapterOut` includes `audio_key: string | null` — null until audio uploaded; `.mp3` for MP3, `.m3u8` path for HLS
 - `getChapterHLS(bookId, chapterId)` — fetches the HLS playlist and **rewrites relative segment filenames to absolute backend proxy URLs** (`/books/{id}/chapters/{id}/hls/{file}`) before returning the M3U8 text; `chapterId` is the chapter DB primary key (`dbId`)
-- One exported function per endpoint: `signIn`, `signUp`, `getMe`, `updateMe`, `getBooks`, `getChapters`, `getChapterAudio(bookId, chapterId)`, `getChapterHLS(bookId, chapterId)`, `getCart`, `addToCart`, `removeFromCart`, `checkout`, `getLibrary`, `getProgress`, `updateProgress`, `getBookmarks`, `addBookmark`, `deleteBookmark`, `getWishlist`, `addToWishlist`, `removeFromWishlist`
+- One exported function per endpoint: `signIn`, `signUp`, `getMe`, `updateMe`, `getBooks`, `getChapters`, `getChapterAudio(bookId, chapterId)`, `getChapterHLS(bookId, chapterId)`, `getCart`, `addToCart`, `removeFromCart`, `checkout`, `getLibrary`, `getProgress`, `updateProgress`, `getBookmarks`, `addBookmark`, `deleteBookmark`, `getWishlist`, `addToWishlist`, `removeFromWishlist`, `getNotifications(limit?)`, `getUnreadCount()`, `markNotificationRead(id)`, `markAllNotificationsRead()`
+- `NotificationOut` — `{ id, type, title, body, book_id: string|null, is_read: boolean, created_at: string }`
 
 ---
 
@@ -99,6 +100,11 @@ inCart(id): boolean; isOwned(id): boolean
 buyPrompt: string | null        // bookId of the "buy now" overlay; null when dismissed
 dismissBuyPrompt(): void
 
+// Notifications
+notifications: NotificationOut[]
+markNotifRead(id): void         // optimistic is_read=true + API call
+markAllNotifsRead(): void       // optimistic all is_read=true + API call
+
 // Playback
 nowPlaying: NowPlaying | null; playerOpen: boolean
 openPlayer(id): void; openPlayerAt(id, chapter): void; closePlayer(): void
@@ -120,7 +126,9 @@ interface Bookmark   { id: string; bookId: string; chapter: number; pos: number;
 interface Sleep      { mode: 'time'|'chapter'; minutes?: number; remaining: number; total: number }
 ```
 
-**Init flow:** On mount — fetches `GET /books?limit=100`; if `localStorage 'geaudio.token'` exists, calls `GET /users/me` then loads cart/library/wishlist/bookmarks/progress in parallel. `loading: true` until complete (Shell shows blank dark screen to prevent auth flash).
+**Init flow:** On mount — fetches `GET /books?limit=100`; if `localStorage 'geaudio.token'` exists, calls `GET /users/me` then loads cart/library/wishlist/bookmarks/progress/**notifications** in parallel. `loading: true` until complete.
+
+**Notification poll:** `setInterval` every 15s while `authed`; cleared on sign-out. `NotifBell` (`Chrome.tsx`) reads `app.notifications` directly — no local state. Bell badge = `notifications.filter(n => !n.is_read).length`. Clicking an item calls `markNotifRead` then deep-links via `book_id → openDetail` or `nav('settings')`.
 
 **Persistence (`localStorage 'geaudio.state.v1'`):** Only `nowPlaying` (with `playing:false`) and `progress`. Cart/library/wishlist/bookmarks are backend-authoritative. JWT stored separately under `'geaudio.token'`.
 

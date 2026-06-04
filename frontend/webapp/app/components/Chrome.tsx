@@ -119,89 +119,68 @@ export function BottomNav() {
 }
 
 // ── Notification bell with dropdown ──
-interface Notif {
-  id: string
-  kind: 'book' | 'premium'
-  bookId?: string
-  title: string
-  body: string
-  ts: number
-  unread: boolean
-  action?: (app: ReturnType<typeof useApp>) => void
-}
-
-const NOTIF_SEED: Notif[] = [
-  { id: 'n1', kind: 'book', bookId: 'neon', title: 'Price drop on your wishlist',
-    body: 'Neon Wolves is now $14.99 — 25% off for the next 2 days.', ts: Date.now() - 1000 * 60 * 24, unread: true,
-    action: (app) => app.openDetail('neon') },
-  { id: 'n2', kind: 'book', bookId: 'machine', title: 'New from authors you follow',
-    body: "Cyrus Mbeki’s The Quiet Machine is now available to listen.", ts: Date.now() - 1000 * 60 * 60 * 5, unread: true,
-    action: (app) => app.openDetail('machine') },
-  { id: 'n3', kind: 'premium', title: 'Your free trial is ready',
-    body: '30 days of unlimited, lossless listening — start anytime.', ts: Date.now() - 1000 * 60 * 60 * 27, unread: false,
-    action: (app) => app.nav('settings') },
-]
 
 function relTime(ts: number) {
   const d = Math.max(0, Date.now() - ts), m = Math.floor(d / 60000)
-  if (m < 1) return 'just now'
-  if (m < 60) return m + 'm ago'
+  if (m < 1) return ‘just now’
+  if (m < 60) return m + ‘m ago’
   const h = Math.floor(m / 60)
-  if (h < 24) return h + 'h ago'
+  if (h < 24) return h + ‘h ago’
   const dd = Math.floor(h / 24)
-  return dd === 1 ? 'yesterday' : dd + 'd ago'
+  return dd === 1 ? ‘yesterday’ : dd + ‘d ago’
 }
 
 export function NotifBell({ size = 40, dropRight = 0 }: { size?: number; dropRight?: number }) {
   const app = useApp()
   const [open, setOpen] = React.useState(false)
-  const [items, setItems] = React.useState(NOTIF_SEED)
   const ref = React.useRef<HTMLDivElement>(null)
-  const unread = items.filter(n => n.unread).length
+  const items = app.notifications
+  const unread = items.filter(n => !n.is_read).length
   useClickOutside(ref, () => setOpen(false), open)
-  const markAll = () => setItems(xs => xs.map(n => ({ ...n, unread: false })))
-  const onItem = (n: Notif) => {
-    setItems(xs => xs.map(x => x.id === n.id ? { ...x, unread: false } : x))
+  const markAll = () => app.markAllNotifsRead()
+  const onItem = (n: typeof items[0]) => {
+    app.markNotifRead(n.id)
     setOpen(false)
-    if (n.action) n.action(app)
+    if (n.book_id) app.openDetail(n.book_id)
+    else app.nav(‘settings’)
   }
   return (
-    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+    <div ref={ref} style={{ position: ‘relative’, flexShrink: 0 }}>
       <IconBtn size={size} onClick={() => setOpen(o => !o)} title="Notifications"
-        style={{ background: open ? T.elev : T.surface, color: open ? T.text : T.mut, position: 'relative' }}>
+        style={{ background: open ? T.elev : T.surface, color: open ? T.text : T.mut, position: ‘relative’ }}>
         <GEIcon.bell s={18} />
         {unread > 0 && (
-          <span style={{ position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 9, background: T.accent, color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.body }}>{unread}</span>
+          <span style={{ position: ‘absolute’, top: -2, right: -2, minWidth: 18, height: 18, padding: ‘0 4px’, borderRadius: 9, background: T.accent, color: ‘#fff’, fontSize: 11, fontWeight: 800, display: ‘flex’, alignItems: ‘center’, justifyContent: ‘center’, fontFamily: T.body }}>{unread}</span>
         )}
       </IconBtn>
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 10px)', right: dropRight, width: 360, maxWidth: '90vw', background: T.surface, border: '1px solid ' + T.line2, borderRadius: 14, boxShadow: T.shadow, padding: 8, zIndex: 60 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px 10px' }}>
+        <div style={{ position: ‘absolute’, top: ‘calc(100% + 10px)’, right: dropRight, width: 360, maxWidth: ‘90vw’, background: T.surface, border: ‘1px solid ‘ + T.line2, borderRadius: 14, boxShadow: T.shadow, padding: 8, zIndex: 60 }}>
+          <div style={{ display: ‘flex’, alignItems: ‘center’, justifyContent: ‘space-between’, padding: ‘8px 10px 10px’ }}>
             <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 15, color: T.text }}>Notifications</span>
-            {unread > 0 && <button onClick={markAll} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.accent2, fontFamily: T.body, fontWeight: 700, fontSize: 12.5 }}>Mark all read</button>}
+            {unread > 0 && <button onClick={markAll} style={{ border: ‘none’, background: ‘transparent’, cursor: ‘pointer’, color: T.accent2, fontFamily: T.body, fontWeight: 700, fontSize: 12.5 }}>Mark all read</button>}
           </div>
-          <div style={{ height: 1, background: T.line, margin: '0 6px 6px' }} />
-          <div className="ge-scroll" style={{ maxHeight: 360, overflowY: 'auto' }}>
+          <div style={{ height: 1, background: T.line, margin: ‘0 6px 6px’ }} />
+          <div className="ge-scroll" style={{ maxHeight: 360, overflowY: ‘auto’ }}>
             {items.length === 0
-              ? <div style={{ padding: '26px 14px', textAlign: 'center', color: T.dim, fontSize: 13 }}>You're all caught up.</div>
+              ? <div style={{ padding: ‘26px 14px’, textAlign: ‘center’, color: T.dim, fontSize: 13 }}>You&apos;re all caught up.</div>
               : items.map(n => {
-                  const b = n.bookId ? GE_BOOK_BY_ID[n.bookId] : null
+                  const b = n.book_id ? (app.booksById[n.book_id] || GE_BOOK_BY_ID[n.book_id]) : null
                   return (
-                    <button key={n.id} onClick={() => onItem(n)} style={{ display: 'flex', gap: 12, width: '100%', textAlign: 'left', padding: '11px 10px', border: 'none', borderRadius: 10, cursor: 'pointer', background: n.unread ? T.accentDim : 'transparent', transition: 'background .12s', marginBottom: 2 }}
-                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = n.unread ? T.accentDim : T.elev}
-                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = n.unread ? T.accentDim : 'transparent'}>
+                    <button key={n.id} onClick={() => onItem(n)} style={{ display: ‘flex’, gap: 12, width: ‘100%’, textAlign: ‘left’, padding: ‘11px 10px’, border: ‘none’, borderRadius: 10, cursor: ‘pointer’, background: !n.is_read ? T.accentDim : ‘transparent’, transition: ‘background .12s’, marginBottom: 2 }}
+                      onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = !n.is_read ? T.accentDim : T.elev}
+                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = !n.is_read ? T.accentDim : ‘transparent’}>
                       {b
                         ? <div style={{ flexShrink: 0 }}><BookCover book={b} w={44} radius={8} /></div>
-                        : <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, background: 'linear-gradient(150deg,#2a1d52,#181030)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.accent2 }}><GEIcon.star s={20} /></div>
+                        : <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, background: ‘linear-gradient(150deg,#2a1d52,#181030)’, display: ‘flex’, alignItems: ‘center’, justifyContent: ‘center’, color: T.accent2 }}><GEIcon.star s={20} /></div>
                       }
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                        <div style={{ display: ‘flex’, alignItems: ‘baseline’, gap: 8 }}>
                           <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 13.5, color: T.text, flex: 1 }}>{n.title}</span>
-                          <span style={{ fontSize: 11, color: T.dim, flexShrink: 0 }}>{relTime(n.ts)}</span>
+                          <span style={{ fontSize: 11, color: T.dim, flexShrink: 0 }}>{relTime(new Date(n.created_at).getTime())}</span>
                         </div>
                         <div style={{ fontFamily: T.body, fontSize: 12.5, color: T.mut, marginTop: 3, lineHeight: 1.45 }}>{n.body}</div>
                       </div>
-                      {n.unread && <span style={{ width: 8, height: 8, borderRadius: 4, background: T.accent2, flexShrink: 0, marginTop: 5 }} />}
+                      {!n.is_read && <span style={{ width: 8, height: 8, borderRadius: 4, background: T.accent2, flexShrink: 0, marginTop: 5 }} />}
                     </button>
                   )
                 })
