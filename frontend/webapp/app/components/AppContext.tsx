@@ -126,7 +126,7 @@ interface AppProviderProps {
 }
 
 export function AppProvider({ children, startView = 'home' }: AppProviderProps) {
-  const saved = useMemo(loadState, [])
+  const saved = useMemo(() => loadState(), [])
   const { mobile, w } = useResponsive()
 
   const [authed, setAuthed] = useState(false)
@@ -233,7 +233,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       setLoading(false)
     }
     init()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])  
 
   // Wire up audio engine callbacks once
   useEffect(() => {
@@ -265,7 +265,16 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       engine.onTimeUpdate = null
       engine.onEnded = null
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])  
+
+  const fetchAndCacheChapters = (id: string) => {
+    if (chaptersByIdRef.current[id]) return
+    const b = booksByIdRef.current[id] || GE_BOOK_BY_ID[id]
+    if (b) setChaptersById(prev => ({ ...prev, [id]: GE_CHAPTERS(b) }))
+    Api.getChapters(id).then(chs => {
+      setChaptersById(prev => ({ ...prev, [id]: chs.map(Api.toChapter) }))
+    }).catch(() => {})
+  }
 
   // Ensure chapters are fetched whenever nowPlaying is set (covers the MiniPlayer path
   // where openPlayer is never called, so fetchAndCacheChapters would otherwise never run).
@@ -340,7 +349,7 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       })
     }, 1000)
     return () => clearInterval(id)
-  }, [np?.playing, np?.bookId, np?.speed]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [np?.playing, np?.bookId, np?.speed])  
 
   // Fire buy prompt the instant a free sample finishes
   useEffect(() => {
@@ -404,15 +413,6 @@ export function AppProvider({ children, startView = 'home' }: AppProviderProps) 
       const locked = chapterLocked(ch, owned)
       return { bookId: id, chapter: ch, pos, playing: play && !locked, speed: p?.speed || speedRef.current }
     })
-  }
-
-  const fetchAndCacheChapters = (id: string) => {
-    if (chaptersByIdRef.current[id]) return
-    const b = booksByIdRef.current[id] || GE_BOOK_BY_ID[id]
-    if (b) setChaptersById(prev => ({ ...prev, [id]: GE_CHAPTERS(b) }))
-    Api.getChapters(id).then(chs => {
-      setChaptersById(prev => ({ ...prev, [id]: chs.map(Api.toChapter) }))
-    }).catch(() => {})
   }
 
   const openPlayer = (id: string) => { startBook(id, undefined, false); setPlayerOpen(true); fetchAndCacheChapters(id) }

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { T } from './theme'
 import { useApp } from './AppContext'
 import * as Api from '../lib/api'
@@ -127,13 +127,16 @@ function CozyLayer({ mob }: { mob: boolean }) {
 }
 
 // ── Particle starfield ──
+function makeParticles(n: number) {
+  return Array.from({ length: n }).map(() => {
+    const sz = 1 + Math.random() * 2.4
+    const dur = 9 + Math.random() * 12
+    return { left: Math.random() * 100, top: Math.random() * 100, sz, dur, delay: -Math.random() * dur, op: 0.3 + Math.random() * 0.5 }
+  })
+}
+
 function Particles({ n = 34 }: { n?: number }) {
-  const parts = useMemo(() =>
-    Array.from({ length: n }).map(() => {
-      const sz = 1 + Math.random() * 2.4
-      const dur = 9 + Math.random() * 12
-      return { left: Math.random() * 100, top: Math.random() * 100, sz, dur, delay: -Math.random() * dur, op: 0.3 + Math.random() * 0.5 }
-    }), [n])
+  const [parts] = useState(() => makeParticles(n))
   return (
     <div className="ge-rev" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', transitionDelay: '300ms' }}>
       {parts.map((p, i) => (

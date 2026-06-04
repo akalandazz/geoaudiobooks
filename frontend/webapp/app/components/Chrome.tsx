@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React, { useRef } from 'react'
 import { T } from './theme'
@@ -6,7 +6,7 @@ import { GEIcon } from './Icons'
 import { BookCover } from './BookCover'
 import { IconBtn, PlayButton, Scrubber, useClickOutside } from './Atoms'
 import { SleepControl } from './Player'
-import { GE_BOOK_BY_ID, GE_BOOKS, GE_CHAPTERS, Book, fmtClock, fmt } from './bookdata'
+import { GE_BOOK_BY_ID, GE_CHAPTERS, Book, fmtClock, fmt } from './bookdata'
 import { useApp } from './AppContext'
 
 // ── Logo ──
@@ -23,30 +23,30 @@ export function Logo({ size = 18 }: { size?: number }) {
 }
 
 // ── Sidebar (desktop) ──
+function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
+  const [hov, setHov] = React.useState(false)
+  return (
+    <div onClick={onClick}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, padding: '10px 12px',
+        borderRadius: 10, cursor: 'pointer',
+        color: active || hov ? T.text : T.mut,
+        background: active ? T.elev : (hov ? T.surface : 'transparent'),
+        transform: hov && !active ? 'translateX(3px)' : 'translateX(0)',
+        fontFamily: T.body, fontWeight: 600, fontSize: 14.5,
+        transition: 'background .2s ease, color .2s ease, transform .22s cubic-bezier(.22,.61,.36,1)' }}>
+      <span style={{ position: 'absolute', left: -2, top: '50%', width: 3, height: active ? 18 : 0,
+        borderRadius: 3, background: T.accent2, transform: 'translateY(-50%)',
+        transition: 'height .26s cubic-bezier(.34,1.56,.64,1)' }} />
+      <span style={{ display: 'flex', transform: active ? 'scale(1.06)' : (hov ? 'scale(1.14)' : 'scale(1)'),
+        transition: 'transform .24s cubic-bezier(.34,1.56,.64,1)' }}>{icon}</span>
+      {label}
+    </div>
+  )
+}
+
 export function Sidebar() {
   const app = useApp()
-  const Item = ({ icon, label, view }: { icon: React.ReactNode; label: string; view: string }) => {
-    const active = app.view === view
-    const [hov, setHov] = React.useState(false)
-    return (
-      <div onClick={() => app.nav(view)}
-        onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-        style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, padding: '10px 12px',
-          borderRadius: 10, cursor: 'pointer',
-          color: active || hov ? T.text : T.mut,
-          background: active ? T.elev : (hov ? T.surface : 'transparent'),
-          transform: hov && !active ? 'translateX(3px)' : 'translateX(0)',
-          fontFamily: T.body, fontWeight: 600, fontSize: 14.5,
-          transition: 'background .2s ease, color .2s ease, transform .22s cubic-bezier(.22,.61,.36,1)' }}>
-        <span style={{ position: 'absolute', left: -2, top: '50%', width: 3, height: active ? 18 : 0,
-          borderRadius: 3, background: T.accent2, transform: 'translateY(-50%)',
-          transition: 'height .26s cubic-bezier(.34,1.56,.64,1)' }} />
-        <span style={{ display: 'flex', transform: active ? 'scale(1.06)' : (hov ? 'scale(1.14)' : 'scale(1)'),
-          transition: 'transform .24s cubic-bezier(.34,1.56,.64,1)' }}>{icon}</span>
-        {label}
-      </div>
-    )
-  }
   const recents = app.library.slice(0, 3).map(id => GE_BOOK_BY_ID[id]).filter(Boolean)
   return (
     <div style={{
@@ -56,9 +56,9 @@ export function Sidebar() {
       <div style={{ padding: '0 8px 22px', cursor: 'pointer' }} onClick={() => app.nav('home')}>
         <Logo />
       </div>
-      <Item icon={<GEIcon.home s={20} />} label="Home" view="home" />
-      <Item icon={<GEIcon.search s={20} />} label="Search" view="search" />
-      <Item icon={<GEIcon.library s={20} />} label="Your Library" view="library" />
+      <SidebarItem icon={<GEIcon.home s={20} />} label="Home" active={app.view === 'home'} onClick={() => app.nav('home')} />
+      <SidebarItem icon={<GEIcon.search s={20} />} label="Search" active={app.view === 'search'} onClick={() => app.nav('search')} />
+      <SidebarItem icon={<GEIcon.library s={20} />} label="Your Library" active={app.view === 'library'} onClick={() => app.nav('library')} />
       <div style={{ height: 1, background: T.line, margin: '16px 8px' }} />
       <div style={{ padding: '0 12px', fontFamily: T.body, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.dim, marginBottom: 8 }}>Jump back in</div>
       <div className="ge-scroll" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
@@ -90,29 +90,29 @@ export function Sidebar() {
 }
 
 // ── Bottom nav (mobile) ──
+function BottomNavItem({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
+  return (
+    <div onClick={onClick} style={{
+      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+      padding: '8px 0', cursor: 'pointer', color: active ? T.accent2 : T.mut,
+      transition: 'color .2s ease',
+    }}>
+      <span style={{ display: 'flex', transform: active ? 'translateY(-2px) scale(1.12)' : 'translateY(0) scale(1)', transition: 'transform .26s cubic-bezier(.34,1.56,.64,1)' }}>{icon}</span>
+      <span style={{ fontFamily: T.body, fontWeight: 700, fontSize: 10.5 }}>{label}</span>
+    </div>
+  )
+}
+
 export function BottomNav() {
   const app = useApp()
-  const Item = ({ icon, label, view }: { icon: React.ReactNode; label: string; view: string }) => {
-    const active = app.view === view
-    return (
-      <div onClick={() => app.nav(view)} style={{
-        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-        padding: '8px 0', cursor: 'pointer', color: active ? T.accent2 : T.mut,
-        transition: 'color .2s ease',
-      }}>
-        <span style={{ display: 'flex', transform: active ? 'translateY(-2px) scale(1.12)' : 'translateY(0) scale(1)', transition: 'transform .26s cubic-bezier(.34,1.56,.64,1)' }}>{icon}</span>
-        <span style={{ fontFamily: T.body, fontWeight: 700, fontSize: 10.5 }}>{label}</span>
-      </div>
-    )
-  }
   return (
     <div style={{ flexShrink: 0, display: 'flex', borderTop: '1px solid ' + T.line, background: T.bg2, paddingBottom: 6 }}>
-      <Item icon={<GEIcon.home s={22} />} label="Home" view="home" />
-      <Item icon={<GEIcon.search s={22} />} label="Search" view="search" />
-      <Item icon={<GEIcon.library s={22} />} label="Library" view="library" />
-      <Item
+      <BottomNavItem icon={<GEIcon.home s={22} />} label="Home" active={app.view === 'home'} onClick={() => app.nav('home')} />
+      <BottomNavItem icon={<GEIcon.search s={22} />} label="Search" active={app.view === 'search'} onClick={() => app.nav('search')} />
+      <BottomNavItem icon={<GEIcon.library s={22} />} label="Library" active={app.view === 'library'} onClick={() => app.nav('library')} />
+      <BottomNavItem
         icon={<div style={{ width: 22, height: 22, borderRadius: 11, background: 'linear-gradient(135deg,#8B5CF6,#E94BD0)' }} />}
-        label="You" view="profile"
+        label="You" active={app.view === 'profile'} onClick={() => app.nav('profile')}
       />
     </div>
   )
@@ -122,12 +122,12 @@ export function BottomNav() {
 
 function relTime(ts: number) {
   const d = Math.max(0, Date.now() - ts), m = Math.floor(d / 60000)
-  if (m < 1) return ‘just now’
-  if (m < 60) return m + ‘m ago’
+  if (m < 1) return 'just now'
+  if (m < 60) return m + 'm ago'
   const h = Math.floor(m / 60)
-  if (h < 24) return h + ‘h ago’
+  if (h < 24) return h + 'h ago'
   const dd = Math.floor(h / 24)
-  return dd === 1 ? ‘yesterday’ : dd + ‘d ago’
+  return dd === 1 ? 'yesterday' : dd + 'd ago'
 }
 
 export function NotifBell({ size = 40, dropRight = 0 }: { size?: number; dropRight?: number }) {
@@ -142,39 +142,39 @@ export function NotifBell({ size = 40, dropRight = 0 }: { size?: number; dropRig
     app.markNotifRead(n.id)
     setOpen(false)
     if (n.book_id) app.openDetail(n.book_id)
-    else app.nav(‘settings’)
+    else app.nav('settings')
   }
   return (
-    <div ref={ref} style={{ position: ‘relative’, flexShrink: 0 }}>
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
       <IconBtn size={size} onClick={() => setOpen(o => !o)} title="Notifications"
-        style={{ background: open ? T.elev : T.surface, color: open ? T.text : T.mut, position: ‘relative’ }}>
+        style={{ background: open ? T.elev : T.surface, color: open ? T.text : T.mut, position: 'relative' }}>
         <GEIcon.bell s={18} />
         {unread > 0 && (
-          <span style={{ position: ‘absolute’, top: -2, right: -2, minWidth: 18, height: 18, padding: ‘0 4px’, borderRadius: 9, background: T.accent, color: ‘#fff’, fontSize: 11, fontWeight: 800, display: ‘flex’, alignItems: ‘center’, justifyContent: ‘center’, fontFamily: T.body }}>{unread}</span>
+          <span style={{ position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 9, background: T.accent, color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.body }}>{unread}</span>
         )}
       </IconBtn>
       {open && (
-        <div style={{ position: ‘absolute’, top: ‘calc(100% + 10px)’, right: dropRight, width: 360, maxWidth: ‘90vw’, background: T.surface, border: ‘1px solid ‘ + T.line2, borderRadius: 14, boxShadow: T.shadow, padding: 8, zIndex: 60 }}>
-          <div style={{ display: ‘flex’, alignItems: ‘center’, justifyContent: ‘space-between’, padding: ‘8px 10px 10px’ }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 10px)', right: dropRight, width: 360, maxWidth: '90vw', background: T.surface, border: '1px solid ' + T.line2, borderRadius: 14, boxShadow: T.shadow, padding: 8, zIndex: 60 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px 10px' }}>
             <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 15, color: T.text }}>Notifications</span>
-            {unread > 0 && <button onClick={markAll} style={{ border: ‘none’, background: ‘transparent’, cursor: ‘pointer’, color: T.accent2, fontFamily: T.body, fontWeight: 700, fontSize: 12.5 }}>Mark all read</button>}
+            {unread > 0 && <button onClick={markAll} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.accent2, fontFamily: T.body, fontWeight: 700, fontSize: 12.5 }}>Mark all read</button>}
           </div>
-          <div style={{ height: 1, background: T.line, margin: ‘0 6px 6px’ }} />
-          <div className="ge-scroll" style={{ maxHeight: 360, overflowY: ‘auto’ }}>
+          <div style={{ height: 1, background: T.line, margin: '0 6px 6px' }} />
+          <div className="ge-scroll" style={{ maxHeight: 360, overflowY: 'auto' }}>
             {items.length === 0
-              ? <div style={{ padding: ‘26px 14px’, textAlign: ‘center’, color: T.dim, fontSize: 13 }}>You&apos;re all caught up.</div>
+              ? <div style={{ padding: '26px 14px', textAlign: 'center', color: T.dim, fontSize: 13 }}>You&apos;re all caught up.</div>
               : items.map(n => {
                   const b = n.book_id ? (app.booksById[n.book_id] || GE_BOOK_BY_ID[n.book_id]) : null
                   return (
-                    <button key={n.id} onClick={() => onItem(n)} style={{ display: ‘flex’, gap: 12, width: ‘100%’, textAlign: ‘left’, padding: ‘11px 10px’, border: ‘none’, borderRadius: 10, cursor: ‘pointer’, background: !n.is_read ? T.accentDim : ‘transparent’, transition: ‘background .12s’, marginBottom: 2 }}
+                    <button key={n.id} onClick={() => onItem(n)} style={{ display: 'flex', gap: 12, width: '100%', textAlign: 'left', padding: '11px 10px', border: 'none', borderRadius: 10, cursor: 'pointer', background: !n.is_read ? T.accentDim : 'transparent', transition: 'background .12s', marginBottom: 2 }}
                       onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = !n.is_read ? T.accentDim : T.elev}
-                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = !n.is_read ? T.accentDim : ‘transparent’}>
+                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = !n.is_read ? T.accentDim : 'transparent'}>
                       {b
                         ? <div style={{ flexShrink: 0 }}><BookCover book={b} w={44} radius={8} /></div>
-                        : <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, background: ‘linear-gradient(150deg,#2a1d52,#181030)’, display: ‘flex’, alignItems: ‘center’, justifyContent: ‘center’, color: T.accent2 }}><GEIcon.star s={20} /></div>
+                        : <div style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, background: 'linear-gradient(150deg,#2a1d52,#181030)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.accent2 }}><GEIcon.star s={20} /></div>
                       }
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: ‘flex’, alignItems: ‘baseline’, gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                           <span style={{ fontFamily: T.disp, fontWeight: 700, fontSize: 13.5, color: T.text, flex: 1 }}>{n.title}</span>
                           <span style={{ fontSize: 11, color: T.dim, flexShrink: 0 }}>{relTime(new Date(n.created_at).getTime())}</span>
                         </div>
@@ -193,19 +193,22 @@ export function NotifBell({ size = 40, dropRight = 0 }: { size?: number; dropRig
 }
 
 // ── Account menu (desktop avatar dropdown) ──
-export function AccountMenu() {
-  const app = useApp()
-  const [open, setOpen] = React.useState(false)
-  const ref = React.useRef<HTMLDivElement>(null)
-  useClickOutside(ref, () => setOpen(false), open)
-  const go = (v: string) => { setOpen(false); app.nav(v) }
-  const MItem = ({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) => (
+function AccountMenuItem({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
+  return (
     <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', color: danger ? '#FB7185' : T.text, fontFamily: T.body, fontWeight: 600, fontSize: 14, borderRadius: 9, transition: 'background .12s' }}
       onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = danger ? 'rgba(251,113,133,0.12)' : T.elev}
       onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'transparent'}>
       <span style={{ display: 'flex', color: danger ? '#FB7185' : T.mut }}>{icon}</span>{label}
     </button>
   )
+}
+
+export function AccountMenu() {
+  const app = useApp()
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+  useClickOutside(ref, () => setOpen(false), open)
+  const go = (v: string) => { setOpen(false); app.nav(v) }
   return (
     <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
       <button onClick={() => setOpen(o => !o)} title="Account" style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid ' + (open ? T.line2 : 'transparent'), background: open ? T.surface : 'transparent', borderRadius: 99, padding: '4px 8px 4px 4px', cursor: 'pointer' }}>
@@ -222,11 +225,11 @@ export function AccountMenu() {
             </div>
           </div>
           <div style={{ height: 1, background: T.line, margin: '0 6px 6px' }} />
-          <MItem icon={<GEIcon.person s={18} />} label="Your profile" onClick={() => go('profile')} />
-          <MItem icon={<GEIcon.library s={18} />} label="Your library" onClick={() => go('library')} />
-          <MItem icon={<GEIcon.gear s={18} />} label="Settings" onClick={() => go('settings')} />
+          <AccountMenuItem icon={<GEIcon.person s={18} />} label="Your profile" onClick={() => go('profile')} />
+          <AccountMenuItem icon={<GEIcon.library s={18} />} label="Your library" onClick={() => go('library')} />
+          <AccountMenuItem icon={<GEIcon.gear s={18} />} label="Settings" onClick={() => go('settings')} />
           <div style={{ height: 1, background: T.line, margin: '6px 6px' }} />
-          <MItem icon={<GEIcon.logout s={18} />} label="Sign out" danger onClick={() => { setOpen(false); app.signOut() }} />
+          <AccountMenuItem icon={<GEIcon.logout s={18} />} label="Sign out" danger onClick={() => { setOpen(false); app.signOut() }} />
         </div>
       )}
     </div>

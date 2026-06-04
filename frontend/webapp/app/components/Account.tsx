@@ -175,12 +175,8 @@ export function Profile() {
 }
 
 // ── SETTINGS ──
-export function Settings() {
-  const app = useApp()
-  const mob = app.mobile
-  const [t1, setT1] = useState(true), [t2, setT2] = useState(false), [t3, setT3] = useState(true)
-
-  const SettingsRow = ({ label, desc, control }: { label: string; desc?: string; control: React.ReactNode }) => (
+function SettingsRow({ label, desc, control }: { label: string; desc?: string; control: React.ReactNode }) {
+  return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 0', borderTop: '1px solid ' + T.line }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: T.body, fontWeight: 600, fontSize: 14.5, color: T.text }}>{label}</div>
@@ -189,6 +185,12 @@ export function Settings() {
       {control}
     </div>
   )
+}
+
+export function Settings() {
+  const app = useApp()
+  const mob = app.mobile
+  const [t1, setT1] = useState(true), [t2, setT2] = useState(false), [t3, setT3] = useState(true)
 
   return (
     <Screen style={{ padding: mob ? '4px 20px 20px' : '24px 40px 40px' }}>

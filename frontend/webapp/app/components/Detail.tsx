@@ -60,9 +60,9 @@ function BookMeta({ b, chapters, owned, inCart, mob, onPlay, onBuy, onCart, onWi
 export function Detail() {
   const app = useApp()
   const b = app.booksById[app.bookId]
-  const [tab, setTab] = useState('Overview')
-
-  useEffect(() => { setTab('Overview') }, [app.bookId])
+  const [tabState, setTabState] = useState({ bookId: app.bookId, tab: 'Overview' })
+  const tab = tabState.bookId === app.bookId ? tabState.tab : 'Overview'
+  const setTab = (t: string) => setTabState({ bookId: app.bookId, tab: t })
 
   // Fetch real chapters from API and cache them in AppContext
   useEffect(() => {
